@@ -2,7 +2,7 @@
 
 **Protocol for Agent Communication And Interfaces.** Un idioma común entre agentes (AlfalfaCode, Chiyo, el director de juego de CuyWorld…) y los clientes que los muestran: apps de Mac y móvil, widgets, terminales, webs y voz.
 
-> Estado: **0.2 cerrada** en lo técnico. El repo es privado hasta comprobar el nombre y elegir licencia (anexo B de la especificación).
+> Estado: **0.2 cerrada** en lo técnico, con licencia Apache-2.0. El repo es privado hasta comprobar el nombre (anexo B de la especificación).
 
 ## Qué es PACAI
 
@@ -172,7 +172,15 @@ Los tipos son `Codable`. Las extensiones y los tipos futuros llegan como `JSONVa
 
 1. ~~Cerrar la 0.2: subagentes y ejecuciones en paralelo, y la correspondencia con AG-UI.~~ Hecho.
 2. ~~SDK de Python y paquete Swift.~~ Hecho; los tipos están escritos a mano y las pruebas los contrastan con los ejemplos de `conformance/`.
-3. Decidir el nombre (marcas, repositorios y dominios) y la licencia (Apache-2.0 o MIT), y publicar el repositorio.
+3. ~~Elegir la licencia.~~ Apache-2.0, como MCP. Falta decidir el nombre (marcas, repositorios y dominios) y publicar el repositorio.
 4. `alfalfa --pacai`, que sustituye a `--stdio` v2 (ver el anexo A de la especificación).
 5. La app de Mac de AlfalfaCode sobre PACAI, con el paquete Swift.
 6. El director de juego de CuyWorld sobre PACAI.
+
+## Licencia
+
+PACAI (la especificación, el esquema, los ejemplos de conformidad y los SDK de Python y Swift) se
+publica bajo la [Apache License 2.0](LICENSE): se puede usar, modificar y redistribuir libremente,
+también en productos cerrados, conservando el aviso de [NOTICE](NOTICE). Incluye una concesión de
+patentes de quien aporta código. Es la misma licencia que usa MCP para su especificación y su código
+nuevo.

@@ -2,7 +2,7 @@
 
 - **Nombre:** PACAI — *Protocol for Agent Communication And Interfaces*.
 - **Versión:** 0.2 (2026-11-12). Sustituye al borrador 0.1, que se conserva en `spec/historico/`.
-- **Estado:** contenido cerrado. Solo quedan pendientes el nombre y la licencia (anexo B). Hasta la 1.0 una versión nueva puede romper la compatibilidad, pero la 0.2 no cambia.
+- **Estado:** contenido cerrado. Licencia Apache-2.0. Solo queda pendiente el nombre (anexo B). Hasta la 1.0 una versión nueva puede romper la compatibilidad, pero la 0.2 no cambia.
 - **Idioma:** los nombres de mensajes y campos están en inglés. La prosa está en español.
 - **Palabras clave:** «DEBE», «NO DEBE», «DEBERÍA» y «PUEDE» siguen RFC 2119/8174 cuando van en mayúsculas.
 - **Material normativo:** este documento. El esquema (`schema/pacai-0.2.schema.json`) y el verificador (`conformance/verificar.py`) lo traducen a máquina; si discrepan, manda este texto y el otro se corrige.
@@ -432,12 +432,11 @@ Cada perfil se declara aparte, por ejemplo «PACAI-Core + work + expression». U
 
 ## Anexo B. Pendiente
 
-El contenido técnico de la 0.2 está cerrado. Antes de publicar el repositorio quedan dos decisiones:
+El contenido técnico de la 0.2 está cerrado. Antes de publicar el repositorio queda una decisión:
 
 1. **Nombre:** comprobar marcas, repositorios y dominios de «PACAI».
-2. **Licencia:** Apache-2.0 o MIT, para la especificación, el esquema y los SDK.
 
-Resueltos en esta versión: subagentes y ejecuciones en paralelo (§4.9), la relación con AG-UI (anexo C, informativo) y los SDK de Python y Swift (`sdk/`).
+Resueltos en esta versión: la licencia (Apache-2.0 para la especificación, el esquema, los ejemplos y los SDK; ver `LICENSE` y `NOTICE`), subagentes y ejecuciones en paralelo (§4.9), la relación con AG-UI (anexo C, informativo) y los SDK de Python y Swift (`sdk/`).
 
 ## Anexo C. Correspondencia con AG-UI (informativo)
 
