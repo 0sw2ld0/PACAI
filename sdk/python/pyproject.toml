@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pacai"
+version = "0.2.0.dev0"
+description = "SDK de PACAI 0.2: protocolo de eventos entre agentes y clientes"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["jsonschema>=4.18"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools]
+packages = ["pacai"]
+
+[tool.setuptools.package-data]
+pacai = ["pacai-0.2.schema.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

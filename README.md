@@ -2,17 +2,27 @@
 
 **Protocol for Agent Communication And Interfaces.** Un idioma común entre agentes (AlfalfaCode, Chiyo, el director de juego de CuyWorld…) y los clientes que los muestran: apps de Mac y móvil, widgets, terminales, webs y voz.
 
+> Estado: **0.2 cerrada** en lo técnico. El repo es privado hasta comprobar el nombre y elegir licencia (anexo B de la especificación).
+
 ## Qué es PACAI
 
-PACAI es el protocolo con el que un agente habla con la app que lo muestra: la app de Mac, apps de iPhone o la terminal. El agente decide qué decir y hacer; el cliente decide cómo mostrarlo. Este repositorio incluye la especificación, que define cómo funciona el protocolo; el esquema JSON, que permite validar la forma de los mensajes; ejemplos y el verificador de conformidad, que comprueban implementaciones; el SDK de Python, para construir y validar mensajes y sesiones; y el paquete Swift para macOS 14 e iOS 17, para leer y escribir mensajes PACAI en esas plataformas.
+PACAI es el protocolo con el que un agente habla con la app que lo muestra: el agente decide qué decir y hacer, y el cliente decide cómo mostrarlo.
+
+El repositorio trae:
+
+- **La especificación**: cómo funciona el protocolo.
+- **El esquema JSON**: para validar la forma de los mensajes.
+- **Ejemplos y el verificador de conformidad**: para comprobar implementaciones.
+- **El SDK de Python**: para construir y validar mensajes y sesiones.
+- **El paquete Swift** (macOS 14 e iOS 17): para leer y escribir mensajes PACAI en esas plataformas.
 
 ## Dónde encaja PACAI
 
 ```mermaid
 flowchart LR
-    A[Agentes<br/>AlfalfaCode · Chiyo · CuyWorld] --> T[Transportes<br/>stdio · WebSocket · SSE]
-    T --> P[PACAI]
-    P --> S[SDKs<br/>Python · Swift]
+    A[Agentes<br/>AlfalfaCode · Chiyo · CuyWorld] --> PY[SDK<br/>Python]
+    PY --> P[PACAI<br/>stdio · WebSocket · SSE]
+    P --> S[Paquete<br/>Swift]
     S --> C[Clientes<br/>app de Mac · apps de iPhone · terminal]
 ```
 
@@ -36,10 +46,6 @@ sequenceDiagram
     A-->>C: tool_end
     A-->>C: run_finished
 ```
-
-El agente decide qué quiere decir o hacer, y el cliente decide cómo mostrarlo según lo que sepa hacer.
-
-> Estado: **0.2 cerrada** en lo técnico. El repo es privado hasta comprobar el nombre y elegir licencia (anexo B de la especificación).
 
 ## Contenido
 

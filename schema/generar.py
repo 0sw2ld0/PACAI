@@ -1,4 +1,7 @@
-"""Genera schema/pacai-0.2.schema.json. La autoridad es spec/PACAI-0.2.md."""
+"""Genera schema/pacai-0.2.schema.json y su copia en el SDK de Python.
+
+La autoridad es spec/PACAI-0.2.md.
+"""
 import json
 from pathlib import Path
 
@@ -22,6 +25,11 @@ defs = {
     ]},
     'client_tool': O({'name': S(minLength=1), 'description': S(), 'input_schema': {'type': 'object'}},
                      ['name', 'input_schema']),
+    'run_state': {'allOf': [O({'run_id': ID, 'status': E('active', 'finished'),
+                               'outcome': E('success', 'interrupted', 'failed', 'blocked'),
+                               'parent_run_id': ID}, ['run_id', 'status']),
+                            {'if': {'properties': {'status': {'const': 'finished'}}},
+                             'then': {'required': ['outcome']}, 'else': {'not': {'required': ['outcome']}}}]},
 }
 
 payloads = {
@@ -34,11 +42,17 @@ payloads = {
                 'implementation': O({'name': S(), 'version': S()})}, ['versions']),
     'session_started': O({'version': S(), 'profiles': {'type': 'array', 'items': S()},
                           'extensions': {'type': 'array', 'items': S()},
-                          'agent': O({'name': S(), 'version': S()})}, ['version', 'profiles', 'extensions']),
+                          'agent': O({'name': S(), 'version': S()}), 'resumed': {'type': 'boolean'},
+                          'resume_after_seq': I(minimum=0)},
+                         ['version', 'profiles', 'extensions']),
     'input': {'allOf': [O({'blocks': BLOCKS, 'mode': E('new_run', 'steer'), 'run_id': ID}, ['blocks']),
                         {'if': {'properties': {'mode': {'const': 'steer'}}, 'required': ['mode']},
                          'then': {'required': ['run_id']}}]},
-    'run_started': O({'input_id': ID}, ['input_id']),
+    # Una ejecución raíz nace de un input; una subejecución (subagente), de su ejecución madre.
+    'run_started': {'allOf': [O({'input_id': ID, 'parent_run_id': ID, 'tool_call_id': ID,
+                                 'agent': O({'name': S(minLength=1), 'description': S()}, ['name'])}),
+                              {'oneOf': [{'required': ['input_id']}, {'required': ['parent_run_id']}]},
+                              {'dependentRequired': {'tool_call_id': ['parent_run_id']}}]},
     'run_finished': {'allOf': [O({'run_id': ID, 'outcome': E('success', 'interrupted', 'failed', 'blocked'),
                                   'detail': S()}, ['run_id', 'outcome']),
                                {'if': {'properties': {'outcome': E('failed', 'blocked')}},
@@ -48,7 +62,8 @@ payloads = {
     'message_delta': O({'message_id': ID, 'blocks': BLOCKS}, ['message_id', 'blocks']),
     'message_end': O({'message_id': ID, 'blocks': BLOCKS}, ['message_id']),
     'tool_start': O({'run_id': ID, 'name': S(minLength=1), 'arguments': {'type': 'object'},
-                     'side': E('agent', 'client'), 'title': S()}, ['run_id', 'name', 'arguments', 'side']),
+                     'side': E('agent', 'client'), 'title': S(), 'approval_id': ID},
+                    ['run_id', 'name', 'arguments', 'side']),
     'tool_end': O({'tool_call_id': ID, 'status': E('success', 'error', 'cancelled'), 'output': BLOCKS,
                    'summary': S()}, ['tool_call_id', 'status']),
     'approval_request': O({'run_id': ID, 'tool_call_id': ID, 'name': S(minLength=1),
@@ -68,11 +83,16 @@ payloads = {
                 'cached_tokens': I(minimum=0), 'context_tokens': I(minimum=0), 'context_limit': I(minimum=1),
                 'cost': O({'amount': {'type': 'number', 'minimum': 0}, 'currency': S(pattern='^[A-Z]{3}$')},
                           ['amount', 'currency'])}),
-    'heartbeat': O({'last_seq': I(minimum=0)}),
-    'error': O({'code': S(pattern='^[a-z][a-z0-9_]*$'), 'message': S(), 'ref': ID}, ['code', 'message']),
+    'heartbeat': O({'last_seq': I(minimum=0)}, ['last_seq']),
+    'error': O({'code': S(pattern='^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)*$'), 'message': S(), 'ref': ID},
+               ['code', 'message']),
     'close': O({'reason': S()}),
-    'snapshot': O({'runs': {'type': 'array'}, 'pending_approvals': {'type': 'array'},
-                   'last_messages': {'type': 'array'}}, ['runs', 'pending_approvals']),
+    # Los mensajes incrustados son mensajes PACAI completos ('#' es la raíz de este esquema).
+    'snapshot': O({'runs': {'type': 'array', 'items': REF('run_state')},
+                   'pending_approvals': {'type': 'array', 'items': {
+                       'allOf': [{'$ref': '#'}, {'properties': {'type': {'const': 'approval_request'}}}]}},
+                   'last_messages': {'type': 'array', 'items': {'$ref': '#'}}},
+                  ['runs', 'pending_approvals']),
     'voice_turn': O({'state': E('client_speaking', 'agent_listening', 'barge_in')}, ['state']),
     'state_snapshot': O({'agent': {'type': 'object'}, 'client': {'type': 'object'}}),
     'state_delta': O({'patch': {'type': 'array', 'items': O(
@@ -92,7 +112,17 @@ SENDER = {'hello': None, 'session_started': 'agent', 'input': 'client', 'run_sta
           'interrupt': 'client', 'usage': 'agent', 'heartbeat': None, 'error': None, 'close': None,
           'snapshot': 'agent', 'voice_turn': None, 'state_snapshot': None, 'state_delta': None,
           'plan_updated': 'agent', 'diff_updated': 'agent', 'expression': 'agent'}
-REPLY = {'session_started', 'approval_result'}
+REPLY = {'session_started', 'approval_result', 'snapshot'}
+# Restricciones que dependen a la vez del sobre y del payload.
+CROSS = {
+    # El cliente aprueba o niega; solo el agente declara caducada su propia petición.
+    'approval_result': [{'if': {'properties': {'sender': {'const': 'agent'}}},
+                         'then': {'properties': {'payload': {'properties': {'decision': {'const': 'expired'}}}}},
+                         'else': {'properties': {'payload': {'properties': {
+                             'decision': E('approved', 'denied')}}}}}],
+    # La herramienta del cliente se contesta con reply_to al tool_start (§4.4).
+    'tool_end': [{'if': {'properties': {'sender': {'const': 'client'}}}, 'then': {'required': ['reply_to']}}],
+}
 
 variants = []
 for name, payload in payloads.items():
@@ -102,6 +132,8 @@ for name, payload in payloads.items():
     v = {'properties': props}
     if name in REPLY:
         v['required'] = ['reply_to']
+    if name in CROSS:
+        v['allOf'] = CROSS[name]
     variants.append(v)
 variants.append({'properties': {'type': S(pattern='^[a-z][a-z0-9_]*\\.[a-z0-9_.]+$'),
                                 'payload': {'type': 'object'}}})
@@ -118,6 +150,9 @@ schema = {
     'oneOf': variants,
     '$defs': defs,
 }
-out = Path(__file__).with_name('pacai-0.2.schema.json')
-out.write_text(json.dumps(schema, ensure_ascii=False, indent=2) + '\n')
-print('escrito', out.name, len(variants), 'variantes')
+texto = json.dumps(schema, ensure_ascii=False, indent=2) + '\n'
+raiz = Path(__file__).resolve().parent.parent
+for out in (raiz / 'schema/pacai-0.2.schema.json', raiz / 'sdk/python/pacai/pacai-0.2.schema.json'):
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(texto)
+    print('escrito', out.relative_to(raiz), len(variants), 'variantes')
