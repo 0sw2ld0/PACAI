@@ -91,7 +91,62 @@ def test_retransmision_identica_se_descarta():
 def test_mensaje_antes_de_empezar():
     agente, cliente = par()
     problemas = Session.check([cliente.input('hola')], validate_schema=False)
-    assert any('antes de session_started' in p for p in problemas)
+    assert any('antes del hello del cliente' in p for p in problemas)
+    agente, cliente = par()
+    problemas = Session.check([cliente.hello(), agente.close()], validate_schema=False)
+    assert problemas == []
+    agente, cliente = par()
+    problemas = Session.check([cliente.hello(), agente.message('usage', {})], validate_schema=False)
+    assert any('usage antes de session_started' in p for p in problemas)
+
+
+def test_encadenar_tras_el_hello():
+    agente, cliente = par()
+    h = cliente.hello()
+    e = cliente.input('hola')
+    msgs = [h, e, agente.hello(), agente.session_started(h['id'])]
+    r = agente.run_started(e['id'])
+    msgs += [r, *agente.text_message(r['id'], 'Hola.'), agente.run_finished(r['id'])]
+    assert Session.check(msgs) == []
+
+
+def test_aprobacion_sin_expires_y_cancelada():
+    agente, cliente = par()
+    h = cliente.hello()
+    msgs = [h, agente.hello(), agente.session_started(h['id'])]
+    e = cliente.input('Publica.')
+    r = agente.run_started(e['id'])
+    t = agente.tool_start(r['id'], 'run_command', {'argv': ['git', 'push']})
+    a = agente.approval_request(t, reason='network')
+    assert 'expires' not in a['payload'] and validate(a) == []
+    msgs += [e, r, t, a, cliente.interrupt(r['id']), agente.cancel_approval(a['id']),
+             agente.tool_end(t['id'], 'cancelled'), agente.run_finished(r['id'], 'interrupted'),
+             cliente.approval_result(a['id'], 'approved', 'once')]
+    assert Session.check(msgs) == []
+
+
+def test_cancelar_herramienta_del_cliente():
+    agente, cliente = par()
+    herr = [{'name': 'clipboard_read', 'input_schema': {'type': 'object'}}]
+    h = cliente.hello(client_tools=herr)
+    msgs = [h, agente.hello(), agente.session_started(h['id'])]
+    e = cliente.input('Traduce.')
+    r = agente.run_started(e['id'])
+    t = agente.tool_start(r['id'], 'clipboard_read', {}, side='client')
+    fin = agente.cancel_client_tool(t['id'])
+    assert 'reply_to' not in fin and fin['payload']['status'] == 'cancelled'
+    tarde = cliente.tool_end(t['id'], output=[{'type': 'text', 'text': 'x'}])
+    msgs += [e, r, t, fin, agente.run_finished(r['id'], 'interrupted'), tarde]
+    assert Session.check(msgs) == []
+    with pytest.raises(ValueError):
+        cliente.cancel_client_tool(t['id'])
+
+
+def test_no_se_aprueba_una_llamada_truncada():
+    agente, _ = par()
+    t = agente.tool_start('m_00000002', 'write_file', {'path': 'x', 'content': 'a…'}, truncated=True)
+    with pytest.raises(ValueError):
+        agente.approval_request(t, reason='outside_sandbox')
 
 
 # -- stdio ---------------------------------------------------------------

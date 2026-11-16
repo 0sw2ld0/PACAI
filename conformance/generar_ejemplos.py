@@ -28,7 +28,7 @@ class Sesion:
         self.n += 1
         self.t = datetime.fromisoformat(sobre['time'].replace('Z', '+00:00')) if 'time' in sobre \
             else self.t + timedelta(seconds=1)
-        m = {'pacai': '0.2', 'id': f'm_{self.n:08d}', 'type': type, 'session': SES, 'sender': sender,
+        m = {'pacai': '0.3', 'id': f'm_{self.n:08d}', 'type': type, 'session': SES, 'sender': sender,
              'seq': self.seq[sender], 'time': self.t.strftime('%Y-%m-%dT%H:%M:%SZ'), 'payload': payload}
         if reply_to:
             m['reply_to'] = reply_to
@@ -50,9 +50,9 @@ class Sesion:
 
 
 def inicio(s, perfiles=(), ext=(), **hello):
-    h = s('client', 'hello', {'versions': ['0.2'], 'profiles': list(perfiles), 'extensions': list(ext), **hello})
-    s('agent', 'hello', {'versions': ['0.2'], 'profiles': list(perfiles), 'extensions': list(ext)})
-    s('agent', 'session_started', {'version': '0.2', 'profiles': list(perfiles), 'extensions': list(ext),
+    h = s('client', 'hello', {'versions': ['0.3'], 'profiles': list(perfiles), 'extensions': list(ext), **hello})
+    s('agent', 'hello', {'versions': ['0.3'], 'profiles': list(perfiles), 'extensions': list(ext)})
+    s('agent', 'session_started', {'version': '0.3', 'profiles': list(perfiles), 'extensions': list(ext),
                                    'agent': {'name': 'ejemplo', 'version': '0.0.1'}}, reply_to=h)
 
 
@@ -135,9 +135,12 @@ def herramienta(s, run, args, name='run_command', **extra):
 
 def pedir(s, run, tool, args, scopes=('once', 'session'), name='run_command', reason='dangerous',
           expires='2026-11-12T14:00:00Z'):
-    return s('agent', 'approval_request', {'run_id': run, 'tool_call_id': tool, 'name': name, 'arguments': args,
-                                           'digest': digest(args), 'reason': reason, 'scopes': list(scopes),
-                                           'expires': expires})
+    """approval_request de un tool_start abierto. Con expires=None no caduca (§4.5)."""
+    p = {'run_id': run, 'tool_call_id': tool, 'name': name, 'arguments': args, 'digest': digest(args),
+         'reason': reason, 'scopes': list(scopes)}
+    if expires is not None:
+        p['expires'] = expires
+    return s('agent', 'approval_request', p)
 
 
 def subagente(s, madre, tarea, nombre='revisor'):
@@ -214,9 +217,9 @@ perdidos.append(s.crear('agent', 'message_end', {'message_id': perdidos[0]['id']
 pedida = s.crear('agent', 'approval_request', {'run_id': r, 'tool_call_id': t, 'name': 'run_command',
                                                'arguments': args, 'digest': digest(args), 'reason': 'network',
                                                'scopes': ['once'], 'expires': '2026-11-12T14:00:00Z'})
-h = s('client', 'hello', {'versions': ['0.2'], 'profiles': ['work'], 'extensions': [],
+h = s('client', 'hello', {'versions': ['0.3'], 'profiles': ['work'], 'extensions': [],
                           'resume_after_seq': recibida})
-s('agent', 'session_started', {'version': '0.2', 'profiles': ['work'], 'extensions': [], 'resumed': True,
+s('agent', 'session_started', {'version': '0.3', 'profiles': ['work'], 'extensions': [], 'resumed': True,
                                'resume_after_seq': s.seq['client'] - 1}, reply_to=h)
 s('agent', 'snapshot', {'runs': [{'run_id': r, 'status': 'active'}], 'pending_approvals': [pedida],
                         'last_messages': perdidos}, reply_to=h)
@@ -231,10 +234,10 @@ e = s('client', 'input', {'blocks': texto('Resume el capítulo.')})
 r = s('agent', 'run_started', {'input_id': e})
 m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant'})
 recibida = s.seq['agent']
-h = s('client', 'hello', {'versions': ['0.2'], 'profiles': [], 'extensions': [], 'resume_after_seq': recibida})
+h = s('client', 'hello', {'versions': ['0.3'], 'profiles': [], 'extensions': [], 'resume_after_seq': recibida})
 s('agent', 'message_delta', {'message_id': m, 'blocks': texto('Trata de un cuy viajero.')})
 s('agent', 'message_end', {'message_id': m})
-s('agent', 'session_started', {'version': '0.2', 'profiles': [], 'extensions': [], 'resumed': True,
+s('agent', 'session_started', {'version': '0.3', 'profiles': [], 'extensions': [], 'resumed': True,
                                'resume_after_seq': s.seq['client'] - 1}, reply_to=h)
 s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'})
 s.write('valid/09-reanudacion-con-reenvio.jsonl')
@@ -266,9 +269,109 @@ s('agent', 'tool_end', {'tool_call_id': t2, 'status': 'cancelled'})
 s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
 s.write('valid/11-interrupcion-en-cascada.jsonl')
 
+# -- 0.3 ----------------------------------------------------------------
+# 12: subagentes en segundo plano: spawn_agent vuelve en el acto y el subagente sigue (§4.9).
+#     La raíz espera a uno e interrumpe al otro; su herramienta ya terminó, así que no hay más que cerrar.
+s = Sesion(); inicio(s)
+e = s('client', 'input', {'blocks': texto('Revisa api/ y web/ en segundo plano.')})
+r = s('agent', 'run_started', {'input_id': e})
+t1, c1 = subagente(s, r, 'Revisar api/')
+s('agent', 'tool_end', {'tool_call_id': t1, 'status': 'success', 'summary': 'Lanzado en segundo plano'})
+t2, c2 = subagente(s, r, 'Revisar web/')
+s('agent', 'tool_end', {'tool_call_id': t2, 'status': 'success', 'summary': 'Lanzado en segundo plano'})
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant', 'blocks': texto('Espero a los revisores.')})
+s('agent', 'message_end', {'message_id': m})
+m1 = s('agent', 'message_start', {'run_id': c1, 'role': 'assistant', 'blocks': texto('api/ está bien.')})
+s('agent', 'message_end', {'message_id': m1})
+s('agent', 'run_finished', {'run_id': c1, 'outcome': 'success'})
+s('client', 'interrupt', {'run_id': c2})
+s('agent', 'run_finished', {'run_id': c2, 'outcome': 'interrupted'})
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant', 'blocks': texto('api/ revisado; web/ lo paraste.')})
+s('agent', 'message_end', {'message_id': m})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'})
+s.write('valid/12-subagentes-en-segundo-plano.jsonl')
+
+# 13: interrumpir con una herramienta del cliente abierta: el agente la cancela y el resultado tardío se ignora (§4.4).
+s = Sesion(); inicio(s, client_tools=herr)
+e = s('client', 'input', {'blocks': texto('Traduce lo que copié.')})
+r = s('agent', 'run_started', {'input_id': e})
+t = s('agent', 'tool_start', {'run_id': r, 'name': 'clipboard_read', 'arguments': {}, 'side': 'client'})
+s('client', 'interrupt', {'run_id': r})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
+s('client', 'tool_end', {'tool_call_id': t, 'status': 'success', 'output': texto('Hello world')}, reply_to=t)
+e = s('client', 'input', {'blocks': texto('Déjalo, gracias.')})
+r = s('agent', 'run_started', {'input_id': e})
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant', 'blocks': texto('De acuerdo.')})
+s('agent', 'message_end', {'message_id': m})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'})
+s.write('valid/13-cancelar-herramienta-del-cliente.jsonl')
+
+# 14: el cliente encadena su primera entrada tras el hello, sin esperar a session_started (§4.1).
+s = Sesion()
+h = s('client', 'hello', {'versions': ['0.3', '0.2'], 'profiles': [], 'extensions': []})
+e = s('client', 'input', {'blocks': texto('¿Qué hora es en Lima?')})
+s('agent', 'hello', {'versions': ['0.3'], 'profiles': [], 'extensions': []})
+s('agent', 'session_started', {'version': '0.3', 'profiles': [], 'extensions': []}, reply_to=h)
+r = s('agent', 'run_started', {'input_id': e})
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant', 'blocks': texto('Son las 5:00.')})
+s('agent', 'message_end', {'message_id': m})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'})
+s.write('valid/14-encadenar-tras-el-hello.jsonl')
+
+# 15: aprobación sin expires; al interrumpir, el agente la cancela de forma explícita y un sí tardío no cuenta (§4.5).
+s = Sesion(); inicio(s)
+e = s('client', 'input', {'blocks': texto('Publica la versión.')})
+r = s('agent', 'run_started', {'input_id': e})
+args = {'argv': ['git', 'push', '--tags']}
+t = herramienta(s, r, args, title='git push --tags')
+a = pedir(s, r, t, args, scopes=['once'], reason='network', expires=None)
+s('client', 'interrupt', {'run_id': r})
+s('agent', 'approval_result', {'decision': 'cancelled'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
+s('client', 'approval_result', {'decision': 'approved', 'scope': 'once'}, reply_to=a)
+s.write('valid/15-aprobacion-sin-caducidad-cancelada.jsonl')
+
+# 16: argumentos reales con un secreto tachado (el digest cubre lo que se ve), argumentos acortados sin
+#     aprobación y diff acumulado de la ejecución (§4.4, §7.3).
+s = Sesion(); inicio(s, ['work'])
+e = s('client', 'input', {'blocks': texto('Despliega y guarda el informe.')})
+r = s('agent', 'run_started', {'input_id': e})
+args = {'argv': ['deploy', '--target', 'staging'], 'env': {'DEPLOY_TOKEN': '[redacted]'}}
+t = herramienta(s, r, args, title='deploy --target staging')
+a = pedir(s, r, t, args, scopes=['once'], reason='network', expires=None)
+s('client', 'approval_result', {'decision': 'approved', 'scope': 'once'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success', 'summary': 'Desplegado en staging'})
+s('agent', 'diff_updated', {'run_id': r, 'files': [{'path': 'deploy.log', 'added': 3, 'removed': 0}]})
+t = herramienta(s, r, {'path': 'informe.md', 'content': '# Informe\n\nLínea 1…'}, name='write_file',
+                title='Escribir informe.md', truncated=True)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success'})
+s('agent', 'diff_updated', {'run_id': r, 'files': [{'path': 'deploy.log', 'added': 3, 'removed': 0},
+                                                   {'path': 'informe.md', 'added': 40, 'removed': 0}]})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'})
+s.write('valid/16-argumentos-reales.jsonl')
+
+# 17: cancelaciones que se cruzan: el agente cancela justo cuando llega la respuesta del cliente; vale el cancelled.
+s = Sesion(); inicio(s, client_tools=herr)
+e = s('client', 'input', {'blocks': texto('Traduce lo que copié y publícalo.')})
+r = s('agent', 'run_started', {'input_id': e})
+t = s('agent', 'tool_start', {'run_id': r, 'name': 'clipboard_read', 'arguments': {}, 'side': 'client'})
+args = {'argv': ['git', 'push']}
+k = herramienta(s, r, args, title='git push')
+a = pedir(s, r, k, args, scopes=['once'], reason='network', expires=None)
+s('client', 'interrupt', {'run_id': r})
+s('client', 'tool_end', {'tool_call_id': t, 'status': 'success', 'output': texto('Hello world')}, reply_to=t)
+s('client', 'approval_result', {'decision': 'approved', 'scope': 'once'}, reply_to=a)
+s('agent', 'approval_result', {'decision': 'cancelled'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': k, 'status': 'cancelled'})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
+s.write('valid/17-cancelaciones-cruzadas.jsonl')
+
 # Inválidos: una línea por caso; el campo "x_motivo" dice qué debe detectar el verificador.
 def malo(motivo, **cambios):
-    base = {'pacai': '0.2', 'id': 'm_99999999', 'session': SES, 'sender': 'client', 'seq': 1,
+    base = {'pacai': '0.3', 'id': 'm_99999999', 'session': SES, 'sender': 'client', 'seq': 1,
             'time': '2026-11-12T10:00:00Z', 'reply_to': 'm_00000001'}
     base.update(cambios)
     base['x_motivo'] = motivo
@@ -281,6 +384,7 @@ def malo(motivo, **cambios):
     malo('respuesta sin reply_to', type='approval_result', payload={'decision': 'denied'}, reply_to=None),
     malo('steer sin run_id', type='input', payload={'blocks': texto('x'), 'mode': 'steer'}),
     malo('versión equivocada', pacai='0.1', type='close', payload={}),
+    malo('versión anterior', pacai='0.2', type='close', payload={}),
     malo('seq cero', seq=0, type='close', payload={}),
     malo('input enviado por el agente', sender='agent', type='input', payload={'blocks': texto('x')}),
     malo('fallo sin detalle', sender='agent', type='run_finished', payload={'run_id': 'm_00000002', 'outcome': 'failed'}),
@@ -306,7 +410,7 @@ def malo(motivo, **cambios):
          payload={'runs': [{'run_id': 'm_00000005', 'status': 'active', 'outcome': 'success'}],
                   'pending_approvals': []}),
     malo('pending_approvals con otro tipo', sender='agent', type='snapshot', payload={
-        'runs': [], 'pending_approvals': [{'pacai': '0.2', 'id': 'm_00000009', 'type': 'close', 'session': SES,
+        'runs': [], 'pending_approvals': [{'pacai': '0.3', 'id': 'm_00000009', 'type': 'close', 'session': SES,
                                            'sender': 'agent', 'seq': 4, 'time': '2026-11-12T10:00:00Z',
                                            'payload': {}}]}),
     malo('last_messages con un mensaje inválido', sender='agent', type='snapshot',
@@ -328,7 +432,18 @@ def malo(motivo, **cambios):
     malo('código de error con mayúsculas', type='error', payload={'code': 'Unknown_Run', 'message': 'x'}),
     malo('heartbeat sin last_seq', type='heartbeat', payload={}),
     malo('session_started sin reply_to', sender='agent', type='session_started', reply_to=None,
-         payload={'version': '0.2', 'profiles': [], 'extensions': []}),
+         payload={'version': '0.3', 'profiles': [], 'extensions': []}),
+    # 0.3: cancelled solo lo envía el agente; truncated solo en el lado del agente y sin approval_id.
+    malo('cancelled enviado por el cliente', type='approval_result', payload={'decision': 'cancelled'}),
+    malo('cancelled con alcance', sender='agent', type='approval_result',
+         payload={'decision': 'cancelled', 'scope': 'once'}),
+    malo('truncated en una herramienta del cliente', sender='agent', type='tool_start', reply_to=None, payload={
+        'run_id': 'm_00000002', 'name': 'x', 'arguments': {}, 'side': 'client', 'truncated': True}),
+    malo('truncated con approval_id', sender='agent', type='tool_start', reply_to=None, payload={
+        'run_id': 'm_00000002', 'name': 'x', 'arguments': {}, 'side': 'agent', 'truncated': True,
+        'approval_id': 'm_00000007'}),
+    malo('truncated que no es booleano', sender='agent', type='tool_start', reply_to=None, payload={
+        'run_id': 'm_00000002', 'name': 'x', 'arguments': {}, 'side': 'agent', 'truncated': 'yes'}),
 ]).replace('"reply_to": null, ', ''))
 
 
@@ -422,10 +537,10 @@ s.write(S + 'herramienta-del-cliente-no-declarada.jsonl', 'no declarada en clien
 
 def reconectar(s, perfiles=(), salto=0):
     """El cliente vuelve con hello + resume_after_seq; el agente contesta resumed (con salto de seq)."""
-    h = s('client', 'hello', {'versions': ['0.2'], 'profiles': list(perfiles), 'extensions': [],
+    h = s('client', 'hello', {'versions': ['0.3'], 'profiles': list(perfiles), 'extensions': [],
                               'resume_after_seq': s.seq['agent']})
     s.seq['agent'] += salto
-    s('agent', 'session_started', {'version': '0.2', 'profiles': list(perfiles), 'extensions': [],
+    s('agent', 'session_started', {'version': '0.3', 'profiles': list(perfiles), 'extensions': [],
                                    'resumed': True}, reply_to=h)
     return h
 
@@ -458,12 +573,119 @@ h = reconectar(s, perfiles=['work', 'expression'])
 cerrar(s, r)
 s.write(S + 'reanudacion-cambia-perfiles.jsonl', 'la reanudación cambia perfiles o extensiones')
 
-# Sustituye al archivo escrito a mano, que además tenía los seq desordenados.
+# El cliente no cierra una herramienta del agente.
+s = Sesion(); r = raiz(s)
+t = herramienta(s, r, {'argv': ['ls']})
+s('client', 'tool_end', {'tool_call_id': t, 'status': 'success'}, reply_to=t)
+cerrar(s, r)
+s.write(S + 'tool-end-del-lado-equivocado.jsonl', 'lo cierra client y la herramienta es del lado agent')
+
+# -- 0.3 ----------------------------------------------------------------
+# El agente solo cierra una herramienta del cliente para cancelarla (§4.4).
 s = Sesion(); inicio(s, client_tools=herr)
 e = s('client', 'input', {'blocks': texto('Traduce lo que copié.')})
 r = s('agent', 'run_started', {'input_id': e})
 t = s('agent', 'tool_start', {'run_id': r, 'name': 'clipboard_read', 'arguments': {}, 'side': 'client'})
 s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success', 'output': texto('Hello world')})
 cerrar(s, r)
-s.write(S + 'tool-end-del-lado-equivocado.jsonl', 'lo cierra agent y la herramienta es del lado client')
+s.write(S + 'agente-cierra-herramienta-del-cliente-sin-cancelar.jsonl',
+        'el agente solo puede cerrar una herramienta del cliente con cancelled')
+
+# Tras cancelar una herramienta del cliente, la ejecución se cierra: nada de trabajo nuevo (§4.2).
+s = Sesion(); inicio(s, client_tools=herr)
+e = s('client', 'input', {'blocks': texto('Traduce lo que copié.')})
+r = s('agent', 'run_started', {'input_id': e})
+t = s('agent', 'tool_start', {'run_id': r, 'name': 'clipboard_read', 'arguments': {}, 'side': 'client'})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant', 'blocks': texto('Sigo sin el portapapeles.')})
+s('agent', 'message_end', {'message_id': m})
+cerrar(s, r)
+s.write(S + 'trabajo-tras-cancelar-herramienta-del-cliente.jsonl', 'que se está cerrando')
+
+# Tras cancelar una aprobación, tampoco (§4.5).
+s = Sesion(); r = raiz(s)
+t = herramienta(s, r, args)
+a = pedir(s, r, t, args, expires=None)
+s('agent', 'approval_result', {'decision': 'cancelled'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+t = herramienta(s, r, {'argv': ['npm', 'ci']})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success'})
+cerrar(s, r)
+s.write(S + 'trabajo-tras-cancelar-aprobacion.jsonl', 'tool_start en la ejecución')
+
+# Ni subagentes nuevos.
+s = Sesion(); inicio(s, client_tools=herr)
+e = s('client', 'input', {'blocks': texto('Traduce lo que copié.')})
+r = s('agent', 'run_started', {'input_id': e})
+t = s('agent', 'tool_start', {'run_id': r, 'name': 'clipboard_read', 'arguments': {}, 'side': 'client'})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+c = s('agent', 'run_started', {'parent_run_id': r, 'agent': {'name': 'traductor'}})
+cerrar(s, c, r)
+s.write(S + 'subagente-de-ejecucion-que-se-cierra.jsonl', 'parent_run_id es una ejecución que se está cerrando')
+
+# Encadenar vale tras el hello del cliente, no antes (§4.1).
+s = Sesion()
+s('client', 'input', {'blocks': texto('Hola.')})
+inicio(s)
+s.write(S + 'input-antes-del-hello.jsonl', 'input antes del hello del cliente')
+
+# El agente no encadena: nada antes de su session_started.
+s = Sesion()
+h = s('client', 'hello', {'versions': ['0.3']})
+s('agent', 'hello', {'versions': ['0.3']})
+s('agent', 'usage', {'input' + T: 1})
+s('agent', 'session_started', {'version': '0.3', 'profiles': [], 'extensions': []}, reply_to=h)
+s.write(S + 'agente-antes-de-session-started.jsonl', 'usage antes de session_started')
+
+# Lo encadenado se juzga con lo negociado.
+s = Sesion()
+h = s('client', 'hello', {'versions': ['0.3'], 'profiles': ['shared_state']})
+s('client', 'state_delta', {'patch': [{'op': 'add', 'path': '/client/surface', 'value': 'widget'}]})
+s('agent', 'hello', {'versions': ['0.3'], 'profiles': []})
+s('agent', 'session_started', {'version': '0.3', 'profiles': [], 'extensions': []}, reply_to=h)
+s.write(S + 'encadenado-de-perfil-no-negociado.jsonl', 'perfil shared_state no negociado')
+
+# Una petición sin expires no caduca (§4.5).
+s = Sesion(); r = raiz(s)
+t = herramienta(s, r, args)
+a = pedir(s, r, t, args, expires=None)
+s('agent', 'approval_result', {'decision': 'expired'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+cerrar(s, r)
+s.write(S + 'caducada-sin-expires.jsonl', 'declara caducada una petición sin expires')
+
+# Interrumpir no resuelve en silencio: antes del tool_end va el cancelled (§4.5, §4.6).
+s = Sesion(); r = raiz(s)
+t = herramienta(s, r, args)
+a = pedir(s, r, t, args, expires=None)
+s('client', 'interrupt', {'run_id': r})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
+s.write(S + 'herramienta-cerrada-con-aprobacion-pendiente.jsonl', 'cierra la herramienta con su aprobación pendiente')
+
+s = Sesion(); r = raiz(s)
+t = herramienta(s, r, args)
+a = pedir(s, r, t, args, expires=None)
+s('client', 'interrupt', {'run_id': r})
+s('agent', 'approval_result', {'decision': 'cancelled'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'error'})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
+s.write(S + 'aprobacion-cancelada-cerrada-con-error.jsonl', 'se cierra con cancelled')
+
+# No se aprueba lo que no se ve entero (§4.4).
+s = Sesion(); r = raiz(s)
+grande = {'path': 'datos.csv', 'content': 'a,b\n1,2\n…'}
+t = herramienta(s, r, grande, name='write_file', truncated=True)
+a = pedir(s, r, t, grande, name='write_file', reason='outside_sandbox', expires=None)
+s('client', 'approval_result', {'decision': 'denied'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'error'})
+cerrar(s, r)
+s.write(S + 'aprobacion-de-llamada-truncada.jsonl', 'approval_request de una llamada con truncated')
+
+# Un subagente en segundo plano no sobrevive a su raíz (§4.9).
+s = Sesion(); r = raiz(s)
+t, c = subagente(s, r, 'Revisar api/')
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success', 'summary': 'Lanzado en segundo plano'})
+cerrar(s, r, c)
+s.write(S + 'subagente-en-segundo-plano-sobrevive-a-la-raiz.jsonl', 'termina antes que sus subejecuciones')
 print('ejemplos escritos')

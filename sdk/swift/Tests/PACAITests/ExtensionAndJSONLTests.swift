@@ -11,7 +11,7 @@ final class ExtensionAndJSONLTests: XCTestCase {
 
     func testExtensionDesconocidaSeConservaCruda() throws {
         let line = """
-        {"pacai":"0.2","id":"m_00000001","type":"cuyworld.scene","session":"\(session)","sender":"agent","seq":1,\
+        {"pacai":"0.3","id":"m_00000001","type":"cuyworld.scene","session":"\(session)","sender":"agent","seq":1,\
         "time":"2026-11-12T10:00:00Z","payload":{"scene":"bosque","npcs":[{"name":"Tito","hp":3.5}],"night":true,"x":null}}
         """
         let m = try JSONL.decode(line)
@@ -24,7 +24,7 @@ final class ExtensionAndJSONLTests: XCTestCase {
 
     func testTipoFuturoYCamposDesconocidos() throws {
         let line = """
-        {"pacai":"0.2","id":"m_00000002","type":"close","session":"\(session)","sender":"client","seq":2,\
+        {"pacai":"0.3","id":"m_00000002","type":"close","session":"\(session)","sender":"client","seq":2,\
         "time":"2026-11-12T10:00:00Z","trace":"abc","payload":{"reason":"fin","futuro":{"a":[1,2]}}}
         """
         let m = try JSONL.decode(line)
@@ -39,7 +39,7 @@ final class ExtensionAndJSONLTests: XCTestCase {
 
     func testBloqueDesconocidoSeConserva() throws {
         let line = """
-        {"pacai":"0.2","id":"m_00000003","type":"message_delta","session":"\(session)","sender":"agent","seq":3,\
+        {"pacai":"0.3","id":"m_00000003","type":"message_delta","session":"\(session)","sender":"agent","seq":3,\
         "time":"2026-11-12T10:00:00Z","payload":{"message_id":"m_00000002","blocks":[{"type":"text","text":"hola"},\
         {"type":"a2ui","tree":{"k":1}},{"type":"text","text":"x","lang":"es"}]}}
         """
@@ -70,7 +70,7 @@ final class ExtensionAndJSONLTests: XCTestCase {
     func testLectorSaltaLineasVaciasYLeeLaUltimaSinSalto() throws {
         let pipe = Pipe()
         let close = """
-        {"pacai":"0.2","id":"m_00000001","type":"close","session":"\(session)","sender":"client","seq":1,"time":"2026-11-12T10:00:00Z","payload":{}}
+        {"pacai":"0.3","id":"m_00000001","type":"close","session":"\(session)","sender":"client","seq":1,"time":"2026-11-12T10:00:00Z","payload":{}}
         """
         pipe.fileHandleForWriting.write(Data(("\n\n" + close + "\n\n" + close.replacingOccurrences(of: "m_00000001", with: "m_00000002")).utf8))
         try pipe.fileHandleForWriting.close()
@@ -96,7 +96,7 @@ final class ExtensionAndJSONLTests: XCTestCase {
 
     func testValorNullEnUnParche() throws {
         let line = """
-        {"pacai":"0.2","id":"m_00000001","type":"state_delta","session":"\(session)","sender":"client","seq":1,\
+        {"pacai":"0.3","id":"m_00000001","type":"state_delta","session":"\(session)","sender":"client","seq":1,\
         "time":"2026-11-12T10:00:00Z","payload":{"patch":[{"op":"replace","path":"/client/busy","value":null}]}}
         """
         XCTAssertEqual(try object(JSONL.encode(JSONL.decode(line))), try object(Data(line.utf8)))

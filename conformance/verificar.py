@@ -1,11 +1,11 @@
-"""Verificador de PACAI 0.2: esquema más reglas de sesión.
+"""Verificador de PACAI 0.3: esquema más reglas de sesión.
 
 Uso: python3 conformance/verificar.py [archivo.jsonl ...]
 Sin argumentos comprueba conformance/valid (todo debe pasar),
 conformance/invalid/mensajes.jsonl (cada línea debe fallar el esquema) y
 conformance/invalid/sesiones (cada sesión debe fallar por el motivo indicado
 en su primera línea, ``x_motivo``). No es normativo: la autoridad es
-spec/PACAI-0.2.md.
+spec/PACAI-0.3.md.
 
 Las reglas viven en el SDK de Python (sdk/python/pacai/session.py), para que
 verificador y SDK no puedan divergir. Solo necesita ``jsonschema``.

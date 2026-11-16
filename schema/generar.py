@@ -1,6 +1,6 @@
-"""Genera schema/pacai-0.2.schema.json y su copia en el SDK de Python.
+"""Genera schema/pacai-0.3.schema.json y su copia en el SDK de Python.
 
-La autoridad es spec/PACAI-0.2.md.
+La autoridad es spec/PACAI-0.3.md. El esquema de la 0.2 se conserva en schema/historico/.
 """
 import json
 from pathlib import Path
@@ -61,9 +61,13 @@ payloads = {
                        ['run_id', 'role']),
     'message_delta': O({'message_id': ID, 'blocks': BLOCKS}, ['message_id', 'blocks']),
     'message_end': O({'message_id': ID, 'blocks': BLOCKS}, ['message_id']),
-    'tool_start': O({'run_id': ID, 'name': S(minLength=1), 'arguments': {'type': 'object'},
-                     'side': E('agent', 'client'), 'title': S(), 'approval_id': ID},
-                    ['run_id', 'name', 'arguments', 'side']),
+    # Unos argumentos acortados no se pueden ejecutar en el cliente ni reutilizar una aprobación (§4.4).
+    'tool_start': {'allOf': [O({'run_id': ID, 'name': S(minLength=1), 'arguments': {'type': 'object'},
+                                'side': E('agent', 'client'), 'title': S(), 'approval_id': ID,
+                                'truncated': {'type': 'boolean'}}, ['run_id', 'name', 'arguments', 'side']),
+                             {'if': {'properties': {'truncated': {'const': True}}, 'required': ['truncated']},
+                              'then': {'properties': {'side': {'const': 'agent'}},
+                                       'not': {'required': ['approval_id']}}}]},
     'tool_end': O({'tool_call_id': ID, 'status': E('success', 'error', 'cancelled'), 'output': BLOCKS,
                    'summary': S()}, ['tool_call_id', 'status']),
     'approval_request': O({'run_id': ID, 'tool_call_id': ID, 'name': S(minLength=1),
@@ -73,8 +77,9 @@ payloads = {
                            'scopes': {'type': 'array', 'items': E('once', 'session'), 'minItems': 1,
                                       'uniqueItems': True},
                            'expires': S(format='date-time')},
-                          ['run_id', 'tool_call_id', 'name', 'arguments', 'digest', 'reason', 'scopes', 'expires']),
-    'approval_result': {'allOf': [O({'decision': E('approved', 'denied', 'expired'), 'scope': E('once', 'session'),
+                          ['run_id', 'tool_call_id', 'name', 'arguments', 'digest', 'reason', 'scopes']),
+    'approval_result': {'allOf': [O({'decision': E('approved', 'denied', 'expired', 'cancelled'),
+                                     'scope': E('once', 'session'),
                                      'reason': S()}, ['decision']),
                                   {'if': {'properties': {'decision': {'const': 'approved'}}},
                                    'then': {'required': ['scope']}, 'else': {'not': {'required': ['scope']}}}]},
@@ -115,12 +120,14 @@ SENDER = {'hello': None, 'session_started': 'agent', 'input': 'client', 'run_sta
 REPLY = {'session_started', 'approval_result', 'snapshot'}
 # Restricciones que dependen a la vez del sobre y del payload.
 CROSS = {
-    # El cliente aprueba o niega; solo el agente declara caducada su propia petición.
+    # El cliente aprueba o niega; solo el agente declara caducada o cancelada su propia petición.
     'approval_result': [{'if': {'properties': {'sender': {'const': 'agent'}}},
-                         'then': {'properties': {'payload': {'properties': {'decision': {'const': 'expired'}}}}},
+                         'then': {'properties': {'payload': {'properties': {
+                             'decision': E('expired', 'cancelled')}}}},
                          'else': {'properties': {'payload': {'properties': {
                              'decision': E('approved', 'denied')}}}}}],
-    # La herramienta del cliente se contesta con reply_to al tool_start (§4.4).
+    # La herramienta del cliente se contesta con reply_to al tool_start (§4.4). Del agente, el
+    # tool_end de una herramienta del cliente solo puede ser cancelled: eso lo comprueba Session.
     'tool_end': [{'if': {'properties': {'sender': {'const': 'client'}}}, 'then': {'required': ['reply_to']}}],
 }
 
@@ -140,11 +147,11 @@ variants.append({'properties': {'type': S(pattern='^[a-z][a-z0-9_]*\\.[a-z0-9_.]
 
 schema = {
     '$schema': 'https://json-schema.org/draft/2020-12/schema',
-    '$id': 'pacai-0.2.schema.json',
-    'title': 'Mensaje PACAI 0.2',
+    '$id': 'pacai-0.3.schema.json',
+    'title': 'Mensaje PACAI 0.3',
     'type': 'object',
     'required': ['pacai', 'id', 'type', 'session', 'sender', 'seq', 'time', 'payload'],
-    'properties': {'pacai': {'const': '0.2'}, 'id': ID, 'type': S(), 'session': S(minLength=16),
+    'properties': {'pacai': {'const': '0.3'}, 'id': ID, 'type': S(), 'session': S(minLength=16),
                    'sender': E('agent', 'client'), 'seq': I(minimum=1),
                    'time': S(format='date-time'), 'reply_to': ID, 'payload': {'type': 'object'}},
     'oneOf': variants,
@@ -152,7 +159,7 @@ schema = {
 }
 texto = json.dumps(schema, ensure_ascii=False, indent=2) + '\n'
 raiz = Path(__file__).resolve().parent.parent
-for out in (raiz / 'schema/pacai-0.2.schema.json', raiz / 'sdk/python/pacai/pacai-0.2.schema.json'):
+for out in (raiz / 'schema/pacai-0.3.schema.json', raiz / 'sdk/python/pacai/pacai-0.3.schema.json'):
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(texto)
     print('escrito', out.relative_to(raiz), len(variants), 'variantes')

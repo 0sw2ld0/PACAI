@@ -1,6 +1,6 @@
-"""Validación de mensajes contra el esquema JSON de PACAI 0.2.
+"""Validación de mensajes contra el esquema JSON de PACAI 0.3.
 
-El esquema viaja dentro del paquete (``pacai-0.2.schema.json``). Lo copia
+El esquema viaja dentro del paquete (``pacai-0.3.schema.json``). Lo copia
 ``schema/generar.py`` cada vez que se regenera.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ class ValidationFailed(ValueError):
 
 @lru_cache(maxsize=1)
 def schema() -> dict:
-    texto = resources.files('pacai').joinpath('pacai-0.2.schema.json').read_text(encoding='utf-8')
+    texto = resources.files('pacai').joinpath('pacai-0.3.schema.json').read_text(encoding='utf-8')
     return json.loads(texto)
 
 

@@ -2,7 +2,7 @@
 
 **Protocol for Agent Communication And Interfaces.** Un idioma común entre agentes (AlfalfaCode, Chiyo, el director de juego de CuyWorld…) y los clientes que los muestran: apps de Mac y móvil, widgets, terminales, webs y voz.
 
-> Estado: **0.2 cerrada** en lo técnico, con licencia Apache-2.0. El repo es privado hasta comprobar el nombre (anexo B de la especificación).
+> Estado: **0.3 cerrada** en lo técnico, con licencia Apache-2.0. Sale de implementar la 0.2 en AlfalfaCode; los cambios están en el §11 de la especificación. El repo es privado hasta comprobar el nombre (anexo B de la especificación).
 
 ## Qué es PACAI
 
@@ -51,9 +51,9 @@ sequenceDiagram
 
 | Ruta | Qué es |
 |---|---|
-| [`spec/PACAI-0.2.md`](spec/PACAI-0.2.md) | La especificación, con identificadores en inglés y prosa en español |
-| [`spec/historico/PACAI-0.1.md`](spec/historico/PACAI-0.1.md) | El borrador anterior |
-| `schema/pacai-0.2.schema.json` | El esquema JSON, generado por `schema/generar.py` |
+| [`spec/PACAI-0.3.md`](spec/PACAI-0.3.md) | La especificación, con identificadores en inglés y prosa en español |
+| [`spec/historico/`](spec/historico/) | Las versiones anteriores: la 0.2 y el borrador 0.1 |
+| `schema/pacai-0.3.schema.json` | El esquema JSON, generado por `schema/generar.py` (el de la 0.2, en `schema/historico/`) |
 | `conformance/` | Ejemplos válidos, ejemplos inválidos y el verificador |
 | `sdk/python/` | SDK de Python (paquete `pacai`) |
 | `sdk/swift/` | Paquete Swift `PACAI` (macOS 14, iOS 17) |
@@ -77,8 +77,10 @@ El verificador usa las reglas de sesión del SDK de Python (`pacai.Session`), as
 - **Un sobre por mensaje:** `pacai`, `id`, `type`, `session`, `sender`, `seq`, `time`, `reply_to` y `payload`.
 - **Al empezar:** ambos lados envían `hello`, que negocia versión, perfiles, extensiones y las herramientas del cliente.
 - **Trabajo:** `input` (`new_run` o `steer`) → `run_started` → `message_*` y `tool_*` → `run_finished`.
-- **Subagentes:** un `run_started` con `parent_run_id` es una subejecución. Puede haber varias a la vez, se interrumpen en cascada y cierran antes que su madre.
-- **Aprobaciones:** con digest JCS de los argumentos, caducidad y alcance `once` o `session`. Una aprobación `session` se reutiliza con `tool_start.approval_id`, solo para el mismo digest. El silencio nunca cuenta como un sí.
+- **Encadenar:** el cliente puede mandar su primera entrada justo después de su `hello`, sin esperar a `session_started`.
+- **Herramientas:** `tool_start.arguments` son los argumentos reales (los secretos, tachados); `title` es lo legible y `truncated` marca los acortados. Al terminar o interrumpir, el agente puede cancelar una herramienta del cliente.
+- **Subagentes:** un `run_started` con `parent_run_id` es una subejecución, y lleva `tool_call_id` si la lanzó una herramienta. Puede haber varias a la vez, también en segundo plano (la herramienta vuelve antes); se interrumpen en cascada y cierran antes que su madre.
+- **Aprobaciones:** con digest JCS de los argumentos, caducidad opcional y alcance `once` o `session`. Una aprobación `session` se reutiliza con `tool_start.approval_id`, solo para el mismo digest. Al terminar o interrumpir, el agente las resuelve con `cancelled`. El silencio nunca cuenta como un sí.
 - **Reanudación:** `hello` con `resume_after_seq`; el agente reenvía lo retenido o responde con `snapshot`. Nunca relanza una ejecución terminada.
 - **Perfiles opcionales:** `voice`, `shared_state`, `work` (plan y diff) y `expression` (emoción, gesto y voz del personaje).
 - **Extensiones:** con espacio de nombres, como `alfalfa.budget`.
@@ -119,8 +121,7 @@ Pedir permiso y comprobar el digest:
 from pacai import digest
 
 herramienta = agente.tool_start(run['id'], 'run_command', {'argv': ['npm', 'test']})
-peticion = agente.approval_request(herramienta, reason='policy', expires='2026-11-12T14:00:00Z',
-                                   scopes=['once', 'session'])
+peticion = agente.approval_request(herramienta, reason='policy', scopes=['once', 'session'])  # sin expires: no caduca
 assert peticion['payload']['digest'] == digest({'argv': ['npm', 'test']})   # JCS, RFC 8785
 ```
 
@@ -159,7 +160,7 @@ for try await mensaje in proceso.standardOutput.fileHandleForReading.pacaiMessag
     switch mensaje.body {
     case .messageDelta(let d): print(d.blocks.compactMap(\.text).joined(), terminator: "")
     case .runStarted(let r) where r.isSubrun: print("subagente:", r.agent?.name ?? "?")
-    case .approvalRequest(let p): mostrarPermiso(p)       // p.digest, p.scopes, p.expires
+    case .approvalRequest(let p): mostrarPermiso(p)       // p.digest, p.scopes, p.expires (opcional)
     case .extension(let tipo, let payload): print(tipo, payload)   // p. ej. alfalfa.budget, en crudo
     default: break
     }
@@ -173,9 +174,10 @@ Los tipos son `Codable`. Las extensiones y los tipos futuros llegan como `JSONVa
 1. ~~Cerrar la 0.2: subagentes y ejecuciones en paralelo, y la correspondencia con AG-UI.~~ Hecho.
 2. ~~SDK de Python y paquete Swift.~~ Hecho; los tipos están escritos a mano y las pruebas los contrastan con los ejemplos de `conformance/`.
 3. ~~Elegir la licencia.~~ Apache-2.0, como MCP. Falta decidir el nombre (marcas, repositorios y dominios) y publicar el repositorio.
-4. `alfalfa --pacai`, que sustituye a `--stdio` v2 (ver el anexo A de la especificación).
-5. La app de Mac de AlfalfaCode sobre PACAI, con el paquete Swift.
-6. El director de juego de CuyWorld sobre PACAI.
+4. ~~`alfalfa --pacai`, que sustituye a `--stdio` v2 (ver el anexo A de la especificación).~~ Hecho con la 0.2.
+5. ~~PACAI 0.3, con lo aprendido en `alfalfa --pacai`.~~ Hecho; falta pasar AlfalfaCode a la 0.3.
+6. La app de Mac de AlfalfaCode sobre PACAI, con el paquete Swift.
+7. El director de juego de CuyWorld sobre PACAI.
 
 ## Licencia
 

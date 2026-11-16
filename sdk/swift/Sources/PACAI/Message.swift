@@ -2,7 +2,7 @@ import Foundation
 
 public enum PACAI {
     /// Versión del protocolo que implementa este paquete.
-    public static let version = "0.2"
+    public static let version = "0.3"
 }
 
 /// Cuerpo tipado de un mensaje: un caso por tipo del núcleo y de los perfiles.

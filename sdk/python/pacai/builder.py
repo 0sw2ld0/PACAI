@@ -93,14 +93,21 @@ class MessageBuilder:
         reply = tool_call_id if self.sender == 'client' else None
         return self.message('tool_end', {'tool_call_id': tool_call_id, 'status': status, **extra}, reply_to=reply)
 
-    def approval_request(self, tool_start: dict, *, reason: str, expires: str,
+    def approval_request(self, tool_start: dict, *, reason: str, expires: str | None = None,
                          scopes=('once',)) -> dict:
-        """Pide permiso para un ``tool_start`` ya emitido; calcula el digest JCS."""
+        """Pide permiso para un ``tool_start`` ya emitido; calcula el digest JCS.
+
+        Sin ``expires`` la petición no caduca (§4.5).
+        """
         p = tool_start['payload']
-        return self.message('approval_request', {
-            'run_id': p['run_id'], 'tool_call_id': tool_start['id'], 'name': p['name'],
-            'arguments': p['arguments'], 'digest': digest(p['arguments']), 'reason': reason,
-            'scopes': list(scopes), 'expires': expires})
+        if p.get('truncated'):
+            raise ValueError('una llamada con truncated no se puede aprobar (§4.4)')
+        payload = {'run_id': p['run_id'], 'tool_call_id': tool_start['id'], 'name': p['name'],
+                   'arguments': p['arguments'], 'digest': digest(p['arguments']), 'reason': reason,
+                   'scopes': list(scopes)}
+        if expires is not None:
+            payload['expires'] = expires
+        return self.message('approval_request', payload)
 
     def approval_result(self, request_id: str, decision: str, scope: str | None = None,
                         reason: str | None = None) -> dict:
@@ -110,6 +117,19 @@ class MessageBuilder:
         if reason is not None:
             p['reason'] = reason
         return self.message('approval_result', p, reply_to=request_id)
+
+    def cancel_approval(self, request_id: str) -> dict:
+        """El agente resuelve una petición pendiente porque la ejecución termina o se interrumpe (§4.5)."""
+        return self.approval_result(request_id, 'cancelled')
+
+    def cancel_client_tool(self, tool_call_id: str) -> dict:
+        """El agente da por cancelada una herramienta del cliente al terminar o interrumpir (§4.4).
+
+        Va sin ``reply_to``: no es una respuesta.
+        """
+        if self.sender != 'agent':
+            raise ValueError('solo el agente cancela una herramienta del cliente')
+        return self.message('tool_end', {'tool_call_id': tool_call_id, 'status': 'cancelled'})
 
     def interrupt(self, run_id: str) -> dict:
         return self.message('interrupt', {'run_id': run_id})

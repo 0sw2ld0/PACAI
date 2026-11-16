@@ -1,6 +1,6 @@
 # pacai (Python)
 
-SDK de PACAI 0.2. Solo depende de `jsonschema`, y únicamente para validar. Requiere Python ≥ 3.11.
+SDK de PACAI 0.3. Solo depende de `jsonschema`, y únicamente para validar. Requiere Python ≥ 3.11.
 
 | Módulo | Qué hace |
 |---|---|

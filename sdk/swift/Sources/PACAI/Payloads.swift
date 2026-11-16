@@ -112,13 +112,15 @@ public struct ToolStart: Codable, Equatable, Sendable, KnownFields {
     public var side: Sender
     public var title: String?
     public var approvalId: String?
+    /// Argumentos acortados por tamaño: la llamada no se puede aprobar (§4.4).
+    public var truncated: Bool?
     enum CodingKeys: String, CodingKey, CaseIterable {
-        case runId = "run_id", name, arguments, side, title, approvalId = "approval_id"
+        case runId = "run_id", name, arguments, side, title, approvalId = "approval_id", truncated
     }
     public init(runId: String, name: String, arguments: [String: JSONValue] = [:], side: Sender = .agent,
-                title: String? = nil, approvalId: String? = nil) {
+                title: String? = nil, approvalId: String? = nil, truncated: Bool? = nil) {
         self.runId = runId; self.name = name; self.arguments = arguments; self.side = side
-        self.title = title; self.approvalId = approvalId
+        self.title = title; self.approvalId = approvalId; self.truncated = truncated
     }
 }
 
@@ -144,19 +146,21 @@ public struct ApprovalRequest: Codable, Equatable, Sendable, KnownFields {
     public var digest: String
     public var reason: String
     public var scopes: [ApprovalScope]
-    public var expires: String
+    /// Instante límite. Sin él, la petición no caduca (§4.5).
+    public var expires: String?
     enum CodingKeys: String, CodingKey, CaseIterable {
         case runId = "run_id", toolCallId = "tool_call_id", name, arguments, digest, reason, scopes, expires
     }
     public init(runId: String, toolCallId: String, name: String, arguments: [String: JSONValue], digest: String,
-                reason: String, scopes: [ApprovalScope], expires: String) {
+                reason: String, scopes: [ApprovalScope], expires: String? = nil) {
         self.runId = runId; self.toolCallId = toolCallId; self.name = name; self.arguments = arguments
         self.digest = digest; self.reason = reason; self.scopes = scopes; self.expires = expires
     }
 }
 
 public struct ApprovalResult: Codable, Equatable, Sendable, KnownFields {
-    public enum Decision: String, Codable, Sendable { case approved, denied, expired }
+    /// `approved` y `denied` los envía el cliente; `expired` y `cancelled`, el agente (§4.5).
+    public enum Decision: String, Codable, Sendable { case approved, denied, expired, cancelled }
     public var decision: Decision
     public var scope: ApprovalScope?
     public var reason: String?

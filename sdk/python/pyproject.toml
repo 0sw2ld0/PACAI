@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pacai"
-version = "0.2.0.dev0"
-description = "SDK de PACAI 0.2: protocolo de eventos entre agentes y clientes"
+version = "0.3.0.dev0"
+description = "SDK de PACAI 0.3: protocolo de eventos entre agentes y clientes"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -19,7 +19,7 @@ test = ["pytest>=7"]
 packages = ["pacai"]
 
 [tool.setuptools.package-data]
-pacai = ["pacai-0.2.schema.json"]
+pacai = ["pacai-0.3.schema.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
