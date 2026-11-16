@@ -8,7 +8,7 @@ from pacai import Session, is_valid, validate
 
 
 def test_hay_ejemplos():
-    assert len(VALIDOS) >= 11 and len(SESIONES_INVALIDAS) >= 20 and len(MENSAJES_INVALIDOS) >= 30
+    assert len(VALIDOS) >= 17 and len(SESIONES_INVALIDAS) >= 33 and len(MENSAJES_INVALIDOS) >= 37
 
 
 @pytest.mark.parametrize('ruta', VALIDOS, ids=lambda r: r.name)

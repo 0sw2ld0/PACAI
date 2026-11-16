@@ -1,4 +1,4 @@
-"""Tipos del sobre y de cada mensaje de PACAI 0.2 (§2–§7).
+"""Tipos del sobre y de cada mensaje de PACAI 0.3 (§2–§7).
 
 Son ``TypedDict``: un mensaje sigue siendo un ``dict`` JSON normal, y los
 tipos sirven para el editor y para mypy. Los campos desconocidos se conservan.
@@ -13,7 +13,7 @@ __all__ = [
     'ERROR_CODES', 'APPROVAL_REASONS', 'PAYLOAD_TYPES',
 ]
 
-VERSION = '0.2'
+VERSION = '0.3'
 Sender = Literal['agent', 'client']
 Outcome = Literal['success', 'interrupted', 'failed', 'blocked']
 Scope = Literal['once', 'session']
@@ -140,6 +140,7 @@ class ToolStart(TypedDict, total=False):
     side: Required[Sender]
     title: str
     approval_id: str
+    truncated: bool        # argumentos acortados por tamaño; no se pueden aprobar (§4.4)
 
 
 class ToolEnd(TypedDict, total=False):
@@ -149,19 +150,19 @@ class ToolEnd(TypedDict, total=False):
     summary: str
 
 
-class ApprovalRequest(TypedDict):
-    run_id: str
-    tool_call_id: str
-    name: str
-    arguments: dict[str, Any]
-    digest: str
-    reason: str
-    scopes: list[Scope]
-    expires: str
+class ApprovalRequest(TypedDict, total=False):
+    run_id: Required[str]
+    tool_call_id: Required[str]
+    name: Required[str]
+    arguments: Required[dict[str, Any]]
+    digest: Required[str]
+    reason: Required[str]
+    scopes: Required[list[Scope]]
+    expires: str           # opcional: sin él, la petición no caduca (§4.5)
 
 
 class ApprovalResult(TypedDict, total=False):
-    decision: Required[Literal['approved', 'denied', 'expired']]
+    decision: Required[Literal['approved', 'denied', 'expired', 'cancelled']]
     scope: Scope
     reason: str
 

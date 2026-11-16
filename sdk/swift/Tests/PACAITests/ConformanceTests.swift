@@ -29,7 +29,7 @@ final class ConformanceTests: XCTestCase {
     }
 
     func testHayEjemplosValidos() throws {
-        XCTAssertGreaterThanOrEqual(try Self.validFiles().count, 11)
+        XCTAssertGreaterThanOrEqual(try Self.validFiles().count, 17)
     }
 
     func testIdaYVueltaDeTodosLosEjemplosValidos() throws {
@@ -85,5 +85,33 @@ final class ConformanceTests: XCTestCase {
         XCTAssertEqual(snapshot?.runs.first?.status, .active)
         XCTAssertEqual(snapshot?.pendingApprovals.first?.type, "approval_request")
         XCTAssertEqual(snapshot?.lastMessages?.count, 2)
+    }
+
+    /// Lo nuevo de la 0.3: aprobación sin `expires`, `cancelled` del agente y `truncated`.
+    func testNovedadesDeLa03() throws {
+        func mensajes(_ prefijo: String) throws -> [Message] {
+            let url = try Self.validFiles().first { $0.lastPathComponent.hasPrefix(prefijo) }!
+            return try JSONL.decodeAll(Data(contentsOf: url))
+        }
+        let cancelada = try mensajes("15-")
+        let peticion = cancelada.compactMap { m -> ApprovalRequest? in
+            if case .approvalRequest(let a) = m.body { return a }
+            return nil
+        }.first
+        XCTAssertNotNil(peticion)
+        XCTAssertNil(peticion?.expires)
+        XCTAssertTrue(cancelada.contains { m in
+            if case .approvalResult(let r) = m.body { return m.sender == .agent && r.decision == .cancelled }
+            return false
+        })
+        XCTAssertTrue(try mensajes("16-").contains { m in
+            if case .toolStart(let t) = m.body { return t.truncated == true }
+            return false
+        })
+        // El agente cierra la herramienta del cliente sin reply_to.
+        XCTAssertTrue(try mensajes("13-").contains { m in
+            if case .toolEnd(let t) = m.body { return m.sender == .agent && t.status == .cancelled && m.replyTo == nil }
+            return false
+        })
     }
 }
