@@ -78,6 +78,52 @@ Fíjate en:
 
 En [`conformance/valid/`](conformance/valid/) hay más sesiones completas: aprobación de sesión, herramientas del cliente, subagentes, interrupciones y reanudación.
 
+## Sesión con un agente de verdad
+
+AlfalfaCode habla PACAI 0.3 desde su versión 0.99.22, con `alfalfa --pacai` (su guía lo explica en [«Control con PACAI»](https://github.com/0sw2ld0/AlfalfaCode/blob/main/docs/USO.md#control-con-pacai-alfalfa---pacai)). [`sdk/python/ejemplos/sesion_con_alfalfa.py`](sdk/python/ejemplos/sesion_con_alfalfa.py) es un cliente pequeño hecho con el SDK de Python:
+
+- lanza `alfalfa --pacai --modo plan`, que solo lee;
+- le manda el `hello` y el encargo seguidos, sin esperar a `session_started` (§4.1);
+- enseña cada mensaje en una línea y niega cualquier permiso que se pida;
+- comprueba la sesión con `pacai.Session` sobre la marcha.
+
+Hace falta AlfalfaCode instalado, con un proveedor configurado, y `jsonschema` (`pip install jsonschema`):
+
+```sh
+cd mi-proyecto
+PYTHONPATH=../PACAI/sdk/python python3 ../PACAI/sdk/python/ejemplos/sesion_con_alfalfa.py --guardar sesion.jsonl
+python3 ../PACAI/conformance/verificar.py sesion.jsonl
+```
+
+Salida real, con AlfalfaCode 0.99.24 y DeepSeek v4.1 Flash, en una carpeta con un `README.md` y un `lista.py`. `→` es lo que envía el cliente y `←` lo que envía el agente; el número es la `seq` de cada lado.
+
+```text
+→ cliente  1  hello            versiones 0.3 · perfiles work · extensiones alfalfa
+→ cliente  2  input            «¿Qué hay en esta carpeta? Contesta en una frase.»
+← agente   1  hello            alfalfa 0.99.24 · versiones 0.3 · perfiles work · extensiones alfalfa
+← agente   2  session_started  0.3 · perfiles work · extensiones alfalfa
+← agente   4  run_started      ejecución raíz
+← agente  10  tool_start       Ver los archivos del proyecto
+← agente  11  tool_end         success
+← agente  15  tool_start       Leer README.md
+← agente  16  tool_end         success
+← agente  17  tool_start       Leer lista.py
+← agente  18  tool_end         success
+← agente  22  message_start    assistant
+← agente  23  message_delta    «La carpeta contiene dos archivos: `README.md`, que describe una app de terminal para guardar la lista de la compra en `lista.json`, y `lista.py`, el script de 16 líneas que añade los argumentos recibidos a esa lista y la imprime.»
+← agente  24  message_end      
+← agente  28  run_finished     success
+→ cliente  3  close            fin
+(sin enseñar: 15 mensajes usage o de extensiones; --todo los enseña)
+Sesión correcta según pacai.Session.
+```
+
+Fíjate en:
+
+- **Los huecos en la `seq` del agente** son los 15 mensajes que el ejemplo no enseña: `usage` y los de la extensión `alfalfa` (`alfalfa.session`, `alfalfa.context`…), que quedó activa en el `hello`. `--todo` los enseña.
+- **En modo plan no pidió permiso**, porque solo leyó. Con un encargo que escriba y sin `--modo plan` (`-- alfalfa --pacai`), llegarían `approval_request`, y el ejemplo los niega.
+- **La sesión guardada pasa el verificador:** son 31 mensajes, los dos lados, y `conformance/verificar.py` la da por correcta.
+
 ## Contenido
 
 | Ruta | Qué es |
@@ -87,6 +133,7 @@ En [`conformance/valid/`](conformance/valid/) hay más sesiones completas: aprob
 | `schema/pacai-0.3.schema.json` | El esquema JSON, generado por `schema/generar.py` (el de la 0.2, en `schema/historico/`) |
 | `conformance/` | Ejemplos válidos, ejemplos inválidos y el verificador |
 | `sdk/python/` | SDK de Python (paquete `pacai`) |
+| `sdk/python/ejemplos/` | Un cliente que abre una sesión real con `alfalfa --pacai` |
 | `sdk/swift/` | Paquete Swift `PACAI` (macOS 14, iOS 17) |
 
 ## Comprobar
@@ -206,8 +253,8 @@ Los tipos son `Codable`. Las extensiones y los tipos futuros llegan como `JSONVa
 2. ~~SDK de Python y paquete Swift.~~ Hecho; los tipos están escritos a mano y las pruebas los contrastan con los ejemplos de `conformance/`.
 3. ~~Elegir la licencia.~~ Apache-2.0, como MCP. Falta decidir el nombre (marcas, repositorios y dominios) y publicar el repositorio.
 4. ~~`alfalfa --pacai`, que sustituye a `--stdio` v2 (ver el anexo A de la especificación).~~ Hecho con la 0.2.
-5. ~~PACAI 0.3, con lo aprendido en `alfalfa --pacai`.~~ Hecho; falta pasar AlfalfaCode a la 0.3.
-6. La app de Mac de AlfalfaCode sobre PACAI, con el paquete Swift.
+5. ~~PACAI 0.3, con lo aprendido en `alfalfa --pacai`.~~ Hecho; AlfalfaCode habla la 0.3 desde su versión 0.99.22.
+6. ~~La app de Mac de AlfalfaCode sobre PACAI.~~ Hecho en la 0.99.23, con un cliente propio de la app (`AlfalfaKit/Pacai`). Falta que use el paquete Swift.
 7. El director de juego de CuyWorld sobre PACAI.
 
 ## Licencia
