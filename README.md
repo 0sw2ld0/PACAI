@@ -95,7 +95,32 @@ PYTHONPATH=../PACAI/sdk/python python3 ../PACAI/sdk/python/ejemplos/sesion_con_a
 python3 ../PACAI/conformance/verificar.py sesion.jsonl
 ```
 
-Salida real, con AlfalfaCode 0.99.24 y DeepSeek v4.1 Flash, en una carpeta con un `README.md` y un `lista.py`. `→` es lo que envía el cliente y `←` lo que envía el agente; el número es la `seq` de cada lado.
+La sesión real, con AlfalfaCode 0.99.24 y DeepSeek v4.1 Flash, en una carpeta con un `README.md` y un `lista.py`. Flecha continua: lo envía el cliente; discontinua: el agente.
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente (sesion_con_alfalfa.py)
+    participant A as Agente (AlfalfaCode)
+    C->>A: hello (perfil work, extensión alfalfa)
+    C->>A: input, sin esperar a session_started
+    A-->>C: hello
+    A-->>C: session_started (responde al hello)
+    A-->>C: run_started (ejecución raíz)
+    A-->>C: tool_start · Ver los archivos del proyecto
+    A-->>C: tool_end (success)
+    A-->>C: tool_start · Leer README.md
+    A-->>C: tool_end (success)
+    A-->>C: tool_start · Leer lista.py
+    A-->>C: tool_end (success)
+    A-->>C: message_start
+    A-->>C: message_delta (la respuesta, en una frase)
+    A-->>C: message_end
+    A-->>C: run_finished (success)
+    C->>A: close
+    Note over C,A: Entre medias, 15 mensajes usage y alfalfa.*<br/>que el ejemplo no enseña
+```
+
+La salida del ejemplo en esa sesión: `→` es lo que envía el cliente y `←` lo que envía el agente; el número es la `seq` de cada lado.
 
 ```text
 → cliente  1  hello            versiones 0.3 · perfiles work · extensiones alfalfa
