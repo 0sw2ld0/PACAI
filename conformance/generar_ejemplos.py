@@ -392,6 +392,41 @@ _, despues = resto.split(MARCA_FIN, 1)
 bloque = '\n```jsonl\n' + ''.join(json.dumps(m, ensure_ascii=False) + '\n' for m in s.msgs) + '```\n'
 README.write_text(antes + MARCA_INICIO + bloque + MARCA_FIN + despues)
 
+
+# 19: un observador (spec/propuestas/observadores.md) mira una sesión en marcha sin participar. Es su propia sesión
+# PACAI: la foto inicial (snapshot) trae lo que está en marcha y después llega la copia de lo que ve el dueño, con los
+# mismos id; la decisión del dueño le llega reenviada (relayed). Él solo manda hello, heartbeat, error y close.
+def del_dueno(n, type, payload, seq):
+    """Un mensaje que el agente mandó al dueño antes de que llegara el observador, dentro de la foto."""
+    return {'pacai': '0.3', 'id': f'd_{n:08d}', 'type': type, 'session': SES, 'sender': 'agent', 'seq': seq,
+            'time': '2026-11-12T09:59:00Z', 'payload': payload}
+
+
+s = Sesion()
+h = s('client', 'hello', {'versions': ['0.3'], 'profiles': ['work'], 'extensions': [], 'observe': True})
+s('agent', 'hello', {'versions': ['0.3'], 'profiles': ['work'], 'extensions': []})
+s('agent', 'session_started', {'version': '0.3', 'profiles': ['work'], 'extensions': [], 'observe': True,
+                               'agent': {'name': 'ejemplo', 'version': '0.0.1'}}, reply_to=h)
+args = {'argv': ['rm', '-rf', 'build']}
+r, t, a = 'd_00000001', 'd_00000002', 'd_00000003'
+s('agent', 'snapshot', {
+    'runs': [{'run_id': r, 'status': 'active'}],
+    'pending_approvals': [del_dueno(3, 'approval_request', {
+        'run_id': r, 'tool_call_id': t, 'name': 'run_command', 'arguments': args, 'digest': digest(args),
+        'reason': 'dangerous', 'scopes': ['once']}, 5)],
+    'last_messages': [del_dueno(1, 'run_started', {'input_id': 'd_entrada1'}, 3),
+                      del_dueno(2, 'tool_start', {'run_id': r, 'name': 'run_command', 'arguments': args,
+                                                  'side': 'agent', 'title': 'rm -rf build'}, 4)]}, reply_to=h)
+s('agent', 'approval_result', {'decision': 'approved', 'scope': 'once', 'relayed': True}, reply_to=a)
+s('client', 'heartbeat', {'last_seq': s.seq['agent']})
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success', 'summary': 'build/ borrada'}, id='d_00000004')
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant'}, id='d_00000005')
+s('agent', 'message_delta', {'message_id': m, 'blocks': texto('Listo: build/ ya no existe.')}, id='d_00000006')
+s('agent', 'message_end', {'message_id': m}, id='d_00000007')
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'}, id='d_00000008')
+s('agent', 'close', {'reason': 'Fin del encargo'}, id='d_00000009')
+s.write('valid/19-observador.jsonl')
+
 # Inválidos: una línea por caso; el campo "x_motivo" dice qué debe detectar el verificador.
 def malo(motivo, **cambios):
     base = {'pacai': '0.3', 'id': 'm_99999999', 'session': SES, 'sender': 'client', 'seq': 1,
@@ -711,4 +746,20 @@ t, c = subagente(s, r, 'Revisar api/')
 s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success', 'summary': 'Lanzado en segundo plano'})
 cerrar(s, r, c)
 s.write(S + 'subagente-en-segundo-plano-sobrevive-a-la-raiz.jsonl', 'termina antes que sus subejecuciones')
+# Un observador solo mira (propuesta de observadores).
+s = Sesion()
+h = s('client', 'hello', {'versions': ['0.3'], 'profiles': [], 'extensions': [], 'observe': True})
+s('agent', 'hello', {'versions': ['0.3'], 'profiles': [], 'extensions': []})
+s('agent', 'session_started', {'version': '0.3', 'profiles': [], 'extensions': [], 'observe': True}, reply_to=h)
+s('agent', 'snapshot', {'runs': [], 'pending_approvals': []}, reply_to=h)
+s('client', 'input', {'blocks': texto('Borra todo.')})
+s.write(S + 'observador-envia-input.jsonl', 'un observador solo envía heartbeat, error y close')
+
+s = Sesion(); r = raiz(s)
+t = herramienta(s, r, args)
+a = pedir(s, r, t, args, scopes=['once'], expires=None)
+s('agent', 'approval_result', {'decision': 'approved', 'scope': 'once', 'relayed': True}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success'})
+cerrar(s, r)
+s.write(S + 'decision-reenviada-sin-observador.jsonl', 'relayed solo lo envía el agente, en la sesión de un observador')
 print('ejemplos escritos')

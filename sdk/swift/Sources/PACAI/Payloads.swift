@@ -13,16 +13,18 @@ public struct Hello: Codable, Equatable, Sendable, KnownFields {
     public var resumeAfterSeq: Int?
     public var render: JSONValue?
     public var implementation: NameVersion?
+    /// Un cliente que solo mira una sesión en marcha (propuesta de observadores).
+    public var observe: Bool?
     enum CodingKeys: String, CodingKey, CaseIterable {
-        case versions, profiles, extensions, limits, render, implementation
+        case versions, profiles, extensions, limits, render, implementation, observe
         case clientTools = "client_tools", resumeAfterSeq = "resume_after_seq"
     }
     public init(versions: [String] = [PACAI.version], profiles: [String]? = [], extensions: [String]? = [],
                 clientTools: [ClientTool]? = nil, limits: Limits? = nil, resumeAfterSeq: Int? = nil,
-                render: JSONValue? = nil, implementation: NameVersion? = nil) {
+                render: JSONValue? = nil, implementation: NameVersion? = nil, observe: Bool? = nil) {
         self.versions = versions; self.profiles = profiles; self.extensions = extensions
         self.clientTools = clientTools; self.limits = limits; self.resumeAfterSeq = resumeAfterSeq
-        self.render = render; self.implementation = implementation
+        self.render = render; self.implementation = implementation; self.observe = observe
     }
 }
 
@@ -33,13 +35,15 @@ public struct SessionStarted: Codable, Equatable, Sendable, KnownFields {
     public var agent: NameVersion?
     public var resumed: Bool?
     public var resumeAfterSeq: Int?
+    /// La sesión de un observador (propuesta de observadores).
+    public var observe: Bool?
     enum CodingKeys: String, CodingKey, CaseIterable {
-        case version, profiles, extensions, agent, resumed, resumeAfterSeq = "resume_after_seq"
+        case version, profiles, extensions, agent, resumed, observe, resumeAfterSeq = "resume_after_seq"
     }
     public init(version: String = PACAI.version, profiles: [String] = [], extensions: [String] = [],
-                agent: NameVersion? = nil, resumed: Bool? = nil, resumeAfterSeq: Int? = nil) {
+                agent: NameVersion? = nil, resumed: Bool? = nil, resumeAfterSeq: Int? = nil, observe: Bool? = nil) {
         self.version = version; self.profiles = profiles; self.extensions = extensions
-        self.agent = agent; self.resumed = resumed; self.resumeAfterSeq = resumeAfterSeq
+        self.agent = agent; self.resumed = resumed; self.resumeAfterSeq = resumeAfterSeq; self.observe = observe
     }
 }
 
@@ -159,14 +163,16 @@ public struct ApprovalRequest: Codable, Equatable, Sendable, KnownFields {
 }
 
 public struct ApprovalResult: Codable, Equatable, Sendable, KnownFields {
-    /// `approved` y `denied` los envía el cliente; `expired` y `cancelled`, el agente (§4.5).
+    /// `approved` y `denied` los envía el cliente; `expired` y `cancelled`, el agente (§4.5). A un observador, el
+    /// agente le reenvía además la decisión del dueño con `relayed` (propuesta de observadores).
     public enum Decision: String, Codable, Sendable { case approved, denied, expired, cancelled }
     public var decision: Decision
     public var scope: ApprovalScope?
     public var reason: String?
-    enum CodingKeys: String, CodingKey, CaseIterable { case decision, scope, reason }
-    public init(decision: Decision, scope: ApprovalScope? = nil, reason: String? = nil) {
-        self.decision = decision; self.scope = scope; self.reason = reason
+    public var relayed: Bool?
+    enum CodingKeys: String, CodingKey, CaseIterable { case decision, scope, reason, relayed }
+    public init(decision: Decision, scope: ApprovalScope? = nil, reason: String? = nil, relayed: Bool? = nil) {
+        self.decision = decision; self.scope = scope; self.reason = reason; self.relayed = relayed
     }
 }
 

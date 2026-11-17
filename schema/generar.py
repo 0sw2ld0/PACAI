@@ -39,11 +39,13 @@ payloads = {
                 'client_tools': {'type': 'array', 'items': REF('client_tool')},
                 'limits': O({'max_message_bytes': I(minimum=1024)}),
                 'resume_after_seq': I(minimum=0), 'render': {'type': 'object'},
-                'implementation': O({'name': S(), 'version': S()})}, ['versions']),
+                'implementation': O({'name': S(), 'version': S()}),
+                # Propuesta de observadores (spec/propuestas/observadores.md): un cliente que solo mira.
+                'observe': {'type': 'boolean'}}, ['versions']),
     'session_started': O({'version': S(), 'profiles': {'type': 'array', 'items': S()},
                           'extensions': {'type': 'array', 'items': S()},
                           'agent': O({'name': S(), 'version': S()}), 'resumed': {'type': 'boolean'},
-                          'resume_after_seq': I(minimum=0)},
+                          'resume_after_seq': I(minimum=0), 'observe': {'type': 'boolean'}},
                          ['version', 'profiles', 'extensions']),
     'input': {'allOf': [O({'blocks': BLOCKS, 'mode': E('new_run', 'steer'), 'run_id': ID}, ['blocks']),
                         {'if': {'properties': {'mode': {'const': 'steer'}}, 'required': ['mode']},
@@ -80,7 +82,7 @@ payloads = {
                           ['run_id', 'tool_call_id', 'name', 'arguments', 'digest', 'reason', 'scopes']),
     'approval_result': {'allOf': [O({'decision': E('approved', 'denied', 'expired', 'cancelled'),
                                      'scope': E('once', 'session'),
-                                     'reason': S()}, ['decision']),
+                                     'reason': S(), 'relayed': {'type': 'boolean'}}, ['decision']),
                                   {'if': {'properties': {'decision': {'const': 'approved'}}},
                                    'then': {'required': ['scope']}, 'else': {'not': {'required': ['scope']}}}]},
     'interrupt': O({'run_id': ID}, ['run_id']),
@@ -120,8 +122,11 @@ SENDER = {'hello': None, 'session_started': 'agent', 'input': 'client', 'run_sta
 REPLY = {'session_started', 'approval_result', 'snapshot'}
 # Restricciones que dependen a la vez del sobre y del payload.
 CROSS = {
-    # El cliente aprueba o niega; solo el agente declara caducada o cancelada su propia petición.
-    'approval_result': [{'if': {'properties': {'sender': {'const': 'agent'}}},
+    # El cliente aprueba o niega; solo el agente declara caducada o cancelada su propia petición. A un
+    # observador, el agente le reenvía además la decisión del dueño con relayed: true (propuesta de observadores).
+    'approval_result': [{'if': {'properties': {'sender': {'const': 'agent'},
+                                               'payload': {'not': {'properties': {'relayed': {'const': True}},
+                                                                   'required': ['relayed']}}}},
                          'then': {'properties': {'payload': {'properties': {
                              'decision': E('expired', 'cancelled')}}}},
                          'else': {'properties': {'payload': {'properties': {

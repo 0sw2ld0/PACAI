@@ -155,6 +155,7 @@ Fíjate en:
 |---|---|
 | [`spec/PACAI-0.3.md`](spec/PACAI-0.3.md) | La especificación, con identificadores en inglés y prosa en español |
 | [`spec/historico/`](spec/historico/) | Las versiones anteriores: la 0.2 y el borrador 0.1 |
+| [`spec/propuestas/`](spec/propuestas/) | Propuestas para la siguiente versión: [observadores](spec/propuestas/observadores.md) |
 | `schema/pacai-0.3.schema.json` | El esquema JSON, generado por `schema/generar.py` (el de la 0.2, en `schema/historico/`) |
 | `conformance/` | Ejemplos válidos, ejemplos inválidos y el verificador |
 | `sdk/python/` | SDK de Python (paquete `pacai`) |
@@ -281,6 +282,9 @@ Los tipos son `Codable`. Las extensiones y los tipos futuros llegan como `JSONVa
 5. ~~PACAI 0.3, con lo aprendido en `alfalfa --pacai`.~~ Hecho; AlfalfaCode habla la 0.3 desde su versión 0.99.22.
 6. ~~La app de Mac de AlfalfaCode sobre PACAI.~~ Hecho en la 0.99.23, con un cliente propio de la app (`AlfalfaKit/Pacai`). Falta que use el paquete Swift.
 7. El director de juego de CuyWorld sobre PACAI.
+8. Observadores: mirar en vivo una sesión en marcha sin participar (un encargo lanzado desde Claude Code, visto en la
+   app de AlfalfaCode). Propuesta para la 0.4 en [`spec/propuestas/observadores.md`](spec/propuestas/observadores.md);
+   el esquema y el verificador ya la aceptan.
 
 ## Licencia
 
