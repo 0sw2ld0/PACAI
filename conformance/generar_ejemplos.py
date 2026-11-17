@@ -369,6 +369,29 @@ s('agent', 'tool_end', {'tool_call_id': t, 'status': 'cancelled'})
 s('agent', 'run_finished', {'run_id': r, 'outcome': 'interrupted'})
 s.write('valid/17-cancelaciones-cruzadas.jsonl')
 
+# 18: la «Sesión típica» del README: un mensaje en streaming y una herramienta que pide permiso.
+s = Sesion(); inicio(s)
+e = s('client', 'input', {'blocks': texto('Borra la carpeta build.')})
+r = s('agent', 'run_started', {'input_id': e})
+m = s('agent', 'message_start', {'run_id': r, 'role': 'assistant'})
+s('agent', 'message_delta', {'message_id': m, 'blocks': texto('Voy a borrar build/; antes te pido permiso.')})
+s('agent', 'message_end', {'message_id': m})
+args = {'argv': ['rm', '-rf', 'build']}
+t = herramienta(s, r, args, title='rm -rf build')
+a = pedir(s, r, t, args, scopes=['once'], expires=None)
+s('client', 'approval_result', {'decision': 'approved', 'scope': 'once'}, reply_to=a)
+s('agent', 'tool_end', {'tool_call_id': t, 'status': 'success', 'summary': 'build/ borrada'})
+s('agent', 'run_finished', {'run_id': r, 'outcome': 'success'})
+s.write('valid/18-sesion-tipica.jsonl')
+
+# El README enseña esta misma sesión: se reescribe entre sus marcas para que no se separen.
+README = D.parent / 'README.md'
+MARCA_INICIO, MARCA_FIN = '<!-- sesion-tipica:inicio -->', '<!-- sesion-tipica:fin -->'
+antes, resto = README.read_text().split(MARCA_INICIO, 1)
+_, despues = resto.split(MARCA_FIN, 1)
+bloque = '\n```jsonl\n' + ''.join(json.dumps(m, ensure_ascii=False) + '\n' for m in s.msgs) + '```\n'
+README.write_text(antes + MARCA_INICIO + bloque + MARCA_FIN + despues)
+
 # Inválidos: una línea por caso; el campo "x_motivo" dice qué debe detectar el verificador.
 def malo(motivo, **cambios):
     base = {'pacai': '0.3', 'id': 'm_99999999', 'session': SES, 'sender': 'client', 'seq': 1,
