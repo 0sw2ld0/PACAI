@@ -28,24 +28,55 @@ flowchart LR
 
 ## Sesión típica
 
+El usuario pide borrar una carpeta. El agente lo anuncia, pide permiso para la orden, la ejecuta y termina. Flecha continua: lo envía el cliente; discontinua: el agente.
+
 ```mermaid
 sequenceDiagram
     participant C as Cliente
     participant A as Agente
     C->>A: hello
-    A->>C: hello
-    A-->>C: session_started
+    A-->>C: hello
+    A-->>C: session_started (responde al hello)
     C->>A: input
-    A-->>C: run_started
+    A-->>C: run_started (su id es el run_id)
     A-->>C: message_start
     A-->>C: message_delta
     A-->>C: message_end
     A-->>C: tool_start
-    A-->>C: approval_request
-    C-->>A: approval_result
+    A-->>C: approval_request (digest de los argumentos)
+    C->>A: approval_result (responde a la petición)
     A-->>C: tool_end
     A-->>C: run_finished
 ```
+
+Así viaja esa misma sesión por stdio, un mensaje JSON por línea. Es el ejemplo [`conformance/valid/18-sesion-tipica.jsonl`](conformance/valid/18-sesion-tipica.jsonl), que el verificador comprueba; `conformance/generar_ejemplos.py` reescribe este bloque.
+
+<!-- sesion-tipica:inicio -->
+```jsonl
+{"pacai": "0.3", "id": "m_00000001", "type": "hello", "session": "s_ejemplo_0123456789abcdef", "sender": "client", "seq": 1, "time": "2026-11-12T10:00:01Z", "payload": {"versions": ["0.3"], "profiles": [], "extensions": []}}
+{"pacai": "0.3", "id": "m_00000002", "type": "hello", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 1, "time": "2026-11-12T10:00:02Z", "payload": {"versions": ["0.3"], "profiles": [], "extensions": []}}
+{"pacai": "0.3", "id": "m_00000003", "type": "session_started", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 2, "time": "2026-11-12T10:00:03Z", "payload": {"version": "0.3", "profiles": [], "extensions": [], "agent": {"name": "ejemplo", "version": "0.0.1"}}, "reply_to": "m_00000001"}
+{"pacai": "0.3", "id": "m_00000004", "type": "input", "session": "s_ejemplo_0123456789abcdef", "sender": "client", "seq": 2, "time": "2026-11-12T10:00:04Z", "payload": {"blocks": [{"type": "text", "text": "Borra la carpeta build."}]}}
+{"pacai": "0.3", "id": "m_00000005", "type": "run_started", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 3, "time": "2026-11-12T10:00:05Z", "payload": {"input_id": "m_00000004"}}
+{"pacai": "0.3", "id": "m_00000006", "type": "message_start", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 4, "time": "2026-11-12T10:00:06Z", "payload": {"run_id": "m_00000005", "role": "assistant"}}
+{"pacai": "0.3", "id": "m_00000007", "type": "message_delta", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 5, "time": "2026-11-12T10:00:07Z", "payload": {"message_id": "m_00000006", "blocks": [{"type": "text", "text": "Voy a borrar build/; antes te pido permiso."}]}}
+{"pacai": "0.3", "id": "m_00000008", "type": "message_end", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 6, "time": "2026-11-12T10:00:08Z", "payload": {"message_id": "m_00000006"}}
+{"pacai": "0.3", "id": "m_00000009", "type": "tool_start", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 7, "time": "2026-11-12T10:00:09Z", "payload": {"run_id": "m_00000005", "name": "run_command", "arguments": {"argv": ["rm", "-rf", "build"]}, "side": "agent", "title": "rm -rf build"}}
+{"pacai": "0.3", "id": "m_00000010", "type": "approval_request", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 8, "time": "2026-11-12T10:00:10Z", "payload": {"run_id": "m_00000005", "tool_call_id": "m_00000009", "name": "run_command", "arguments": {"argv": ["rm", "-rf", "build"]}, "digest": "sha256:2f6e57e25f170f1147e3b8d7fe97b465acebb7ef910d96437e8a065b537ae57a", "reason": "dangerous", "scopes": ["once"]}}
+{"pacai": "0.3", "id": "m_00000011", "type": "approval_result", "session": "s_ejemplo_0123456789abcdef", "sender": "client", "seq": 3, "time": "2026-11-12T10:00:11Z", "payload": {"decision": "approved", "scope": "once"}, "reply_to": "m_00000010"}
+{"pacai": "0.3", "id": "m_00000012", "type": "tool_end", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 9, "time": "2026-11-12T10:00:12Z", "payload": {"tool_call_id": "m_00000009", "status": "success", "summary": "build/ borrada"}}
+{"pacai": "0.3", "id": "m_00000013", "type": "run_finished", "session": "s_ejemplo_0123456789abcdef", "sender": "agent", "seq": 10, "time": "2026-11-12T10:00:13Z", "payload": {"run_id": "m_00000005", "outcome": "success"}}
+```
+<!-- sesion-tipica:fin -->
+
+Fíjate en:
+
+- **El sobre** es igual en todos los mensajes: `pacai`, `id`, `type`, `session`, `sender`, `seq`, `time` y `payload`, más `reply_to` cuando responde a otro.
+- **Cada lado cuenta su propia `seq`:** el `input` es la 2 del cliente, y el `run_started`, la 3 del agente.
+- **Los mensajes se enlazan por `id`:** el del `run_started` es el `run_id` de todo lo que sigue; `message_delta` y `message_end` nombran su `message_start` con `message_id`; `approval_request` y `tool_end`, su `tool_start` con `tool_call_id`.
+- **La aprobación es exacta:** `approval_request` repite `name` y `arguments` del `tool_start` y lleva su `digest` (JCS y SHA-256). El cliente contesta con `reply_to` y un alcance de los ofrecidos. El silencio nunca cuenta como un sí.
+
+En [`conformance/valid/`](conformance/valid/) hay más sesiones completas: aprobación de sesión, herramientas del cliente, subagentes, interrupciones y reanudación.
 
 ## Contenido
 
@@ -63,7 +94,7 @@ sequenceDiagram
 ```sh
 pip install jsonschema
 python3 schema/generar.py                  # regenera el esquema (y su copia en sdk/python/pacai/)
-python3 conformance/generar_ejemplos.py    # regenera los ejemplos válidos e inválidos por mensaje
+python3 conformance/generar_ejemplos.py    # regenera los ejemplos (y la sesión típica de este README)
 python3 conformance/verificar.py           # todo debe salir OK
 python3 conformance/verificar.py mi-sesion.jsonl
 (cd sdk/python && python3 -m pytest)       # pruebas del SDK de Python
