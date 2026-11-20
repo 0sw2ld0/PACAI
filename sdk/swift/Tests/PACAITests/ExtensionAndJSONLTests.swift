@@ -85,6 +85,39 @@ final class ExtensionAndJSONLTests: XCTestCase {
         XCTAssertThrowsError(try JSONLReader(handle: pipe.fileHandleForReading, maxBytes: 1024).next())
     }
 
+    func testLimiteJSONLCuentaElSaltoDeLinea() throws {
+        let ejemplo = ConformanceTests.conformance.appendingPathComponent("valid/01-texto.jsonl")
+        let mensajes = try JSONL.decodeAll(Data(contentsOf: ejemplo))
+        let mensaje = try XCTUnwrap(mensajes.first { $0.type == "input" })
+        let linea = try JSONL.encode(mensaje)
+        let limite = 1024
+        let relleno = Data(repeating: 0x20, count: limite - linea.count)
+        let exacta = linea.dropLast() + relleno + Data([0x0A])
+        let pasada = exacta.dropLast() + Data([0x20, 0x0A])
+        XCTAssertEqual(exacta.count, limite)
+        XCTAssertEqual(pasada.count, limite + 1)
+
+        let entrada = Pipe()
+        try entrada.fileHandleForWriting.write(contentsOf: exacta + pasada)
+        try entrada.fileHandleForWriting.close()
+        let lector = JSONLReader(handle: entrada.fileHandleForReading, maxBytes: limite)
+        XCTAssertEqual(try lector.next(), mensaje)
+        XCTAssertThrowsError(try lector.next()) {
+            XCTAssertEqual($0 as? JSONL.Failure, .messageTooLarge(limite + 1))
+        }
+
+        let salida = Pipe()
+        let handle = salida.fileHandleForWriting
+        try JSONLWriter(handle: handle, maxBytes: linea.count).write(mensaje)
+        XCTAssertThrowsError(try JSONLWriter(handle: handle, maxBytes: linea.count - 1).write(mensaje)) {
+            XCTAssertEqual($0 as? JSONL.Failure, .messageTooLarge(linea.count))
+        }
+        try handle.close()
+        let escritos = try salida.fileHandleForReading.readToEnd()
+        XCTAssertEqual(escritos?.count, linea.count)
+        XCTAssertEqual(try JSONL.decode(XCTUnwrap(escritos)), mensaje)
+    }
+
     func testCodificacionCompactaSinBarrasEscapadas() throws {
         let m = Message(id: "m_00000001", session: session, sender: .client, seq: 1, time: "2026-11-12T10:00:00Z",
                         body: .input(Input(blocks: [.text("ver https://a/b\nfin")])))

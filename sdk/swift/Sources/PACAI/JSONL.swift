@@ -2,7 +2,7 @@ import Foundation
 
 /// Transporte `pacai+stdio` (§5.1): un mensaje JSON compacto por línea.
 public enum JSONL {
-    /// Límite por defecto de un mensaje (§4.1): 1 MiB.
+    /// Límite por defecto de una línea JSONL, incluido el LF (§4.1 y §5.1): 1 MiB.
     public static let defaultMaxBytes = 1024 * 1024
 
     public enum Failure: Error, Equatable {
@@ -57,7 +57,8 @@ public final class JSONLReader {
             if let nl = buffer.firstIndex(of: 0x0A) {
                 let line = buffer[buffer.startIndex..<nl]
                 buffer.removeSubrange(buffer.startIndex...nl)
-                if line.count > maxBytes { throw JSONL.Failure.messageTooLarge(line.count) }
+                let size = line.count + 1 // Incluye el LF consumido al sacar la línea.
+                if size > maxBytes { throw JSONL.Failure.messageTooLarge(size) }
                 if line.allSatisfy({ $0 == 0x20 || $0 == 0x09 || $0 == 0x0D }) { continue }
                 return try JSONL.decode(Data(line))
             }

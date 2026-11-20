@@ -107,7 +107,7 @@ Ambos lados envían `hello` como primer mensaje. El agente contesta al del clien
 | `profiles` | Perfiles que admite (§7). |
 | `extensions` | Espacios de extensión que admite (§8), p. ej. `["alfalfa"]`. |
 | `client_tools` | Solo el cliente. Herramientas que el cliente puede ejecutar para el agente: `name`, `description` e `input_schema` (JSON Schema). Cierra el hueco 2 del 0.1. |
-| `limits` | `max_message_bytes` (por defecto 1 MiB). |
+| `limits` | `max_message_bytes` (por defecto 1 MiB). En stdio cuenta también el salto de línea (§5.1). |
 | `resume_after_seq` | Solo el cliente, para reconectar: la última `seq` del agente que recibió (§6). |
 | `render` | Solo el cliente. Qué sabe representar, p. ej. para `expression` (§7.4). Es informativo. |
 | `implementation` | `name` y `version` del programa. Es informativo. |
@@ -293,6 +293,7 @@ El nombre `parent_run_id` sigue el vocabulario de `run_id`. AG-UI tiene un campo
 Es el transporte de los procesos locales, como `alfalfa --pacai`.
 
 - Un mensaje por línea, JSON compacto terminado en `\n` (JSONL).
+- Para `max_message_bytes`, se DEBEN contar los bytes UTF-8 de toda la línea, incluido el byte final `\n` (LF). Una línea de exactamente ese tamaño cabe. Si lo supera, corresponde `message_too_large` (§4.8).
 - **stdout lleva solo mensajes PACAI.** Los registros van por stderr.
 - Cerrar la entrada (EOF) equivale a `close` del cliente. Las aprobaciones pendientes se resuelven entonces como negadas, nunca como aprobadas.
 - No hace falta latido.

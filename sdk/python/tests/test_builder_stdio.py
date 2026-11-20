@@ -182,6 +182,33 @@ def test_limite_de_tamano():
         t.send({'a': 'x' * 2000})
 
 
+def test_limite_jsonl_cuenta_el_salto_de_linea(conformance):
+    mensaje = next(m for m in leer(conformance / 'valid/01-texto.jsonl') if m['type'] == 'input')
+    linea = encode(mensaje).encode('utf-8')
+    limite = 1024
+    exacta = linea[:-1] + b' ' * (limite - len(linea)) + b'\n'
+    pasada = exacta[:-1] + b' \n'
+    assert len(exacta) == limite and len(pasada) == limite + 1
+
+    lector = StdioTransport.in_memory((exacta + pasada).decode('utf-8'))
+    lector.max_bytes = limite
+    assert lector.receive() == mensaje
+    with pytest.raises(MessageTooLarge):
+        lector.receive()
+    assert list(read_messages(io.BytesIO(exacta), max_bytes=limite)) == [mensaje]
+    with pytest.raises(MessageTooLarge):
+        list(read_messages(io.BytesIO(pasada), max_bytes=limite))
+
+    escritor = StdioTransport.in_memory()
+    escritor.max_bytes = len(linea)
+    escritor.send(mensaje)
+    assert escritor.writer.getvalue().encode('utf-8') == linea
+    escritor.max_bytes -= 1
+    with pytest.raises(MessageTooLarge):
+        escritor.send(mensaje)
+    assert escritor.writer.getvalue().encode('utf-8') == linea
+
+
 def test_decode_rechaza_lo_que_no_es_objeto():
     with pytest.raises(ValueError):
         decode('[1, 2]')

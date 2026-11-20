@@ -42,7 +42,7 @@ def read_messages(stream: IO, max_bytes: int = DEFAULT_MAX_BYTES) -> Iterator[di
 
 
 class StdioTransport:
-    """Lee y escribe JSONL sobre dos flujos de texto (stdin/stdout por defecto)."""
+    """Lee y escribe JSONL sobre flujos de texto. El límite incluye el salto de línea."""
 
     def __init__(self, reader: IO[str] | None = None, writer: IO[str] | None = None,
                  max_bytes: int = DEFAULT_MAX_BYTES):
