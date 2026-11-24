@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PACAI · el idioma común entre agentes y las apps que los muestran</title>
+    <meta name="description" content="PACAI es un protocolo abierto para que un agente de IA hable con la app que lo muestra: mensajes, herramientas, permisos y subagentes, por stdio, WebSocket o SSE.">
+    <meta property="og:title" content="PACAI · Protocol for Agent Communication And Interfaces">
+    <meta property="og:description" content="El agente decide qué decir y hacer. El cliente decide cómo mostrarlo.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141821'/%3E%3Cpath d='M9 11h9M14 21h9' stroke='%2334d399' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M16 8l3 3-3 3M17 18l-3 3 3 3' stroke='%23fbbf24' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <style>
+        :root {
+            --papel: #f7f6f2;
+            --superficie: #ffffff;
+            --tinta: #141821;
+            --suave: #5b6170;
+            --borde: #e3e1da;
+            --noche: #141821;
+            --noche-2: #1d2230;
+            --agente: #10b981;     /* lo que envía el agente */
+            --cliente: #f59e0b;    /* lo que envía el cliente */
+            --enlace: #0f766e;
+            --titular: "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+            --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            color-scheme: light;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--papel); color: var(--tinta); }
+        a { color: var(--enlace); }
+        code { font-family: var(--mono); font-size: .88em; background: #ecebe5; padding: 1px 5px; border-radius: 5px; }
+        .ancho { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+        /* -- cabecera ------------------------------------------------------------------------------------- */
+        header.barra { position: sticky; top: 0; z-index: 5; background: rgb(20 24 33 / 92%); backdrop-filter: blur(8px); }
+        header.barra .ancho { display: flex; align-items: center; justify-content: space-between; height: 58px; }
+        .logo { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-family: var(--titular);
+                font-weight: 800; font-size: 22px; letter-spacing: .04em; }
+        .logo svg { width: 28px; height: 28px; }
+        nav.menu { display: flex; gap: 22px; }
+        nav.menu a { color: #c9cfdb; text-decoration: none; font-size: 15px; }
+        nav.menu a:hover, nav.menu a:focus-visible { color: #fff; }
+
+        /* -- portada -------------------------------------------------------------------------------------- */
+        .portada { background: var(--noche); color: #fff; padding: 72px 0 84px; overflow: hidden; }
+        .portada .ancho { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+        .etiqueta { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+                    color: var(--agente); border: 1px solid rgb(16 185 129 / 40%); padding: 4px 10px; border-radius: 999px; }
+        h1 { font-family: var(--titular); font-weight: 800; font-size: clamp(38px, 6vw, 62px); line-height: 1.02; margin: 18px 0 18px;
+             letter-spacing: -.01em; }
+        h1 em { font-style: normal; color: var(--agente); }
+        .portada p.entrada { font-size: 19px; color: #c9cfdb; margin: 0 0 30px; max-width: 34em; }
+        .portada p.entrada strong { color: #fff; }
+        .botones { display: flex; flex-wrap: wrap; gap: 12px; }
+        .boton { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 12px; font-weight: 700;
+                 text-decoration: none; font-size: 16px; }
+        .boton-principal { background: var(--agente); color: #052e1f; }
+        .boton-principal:hover { background: #34d399; }
+        .boton-secundario { color: #fff; border: 1px solid #3a4254; }
+        .boton-secundario:hover { border-color: #8b93a7; }
+        .nombre-completo { margin-top: 26px; font-size: 13.5px; color: #8b93a7; }
+        .nombre-completo b { color: #c9cfdb; font-weight: 600; }
+
+        /* El diálogo de la portada: un agente y un cliente hablándose. */
+        .dialogo { background: var(--noche-2); border: 1px solid #2c3345; border-radius: 18px; padding: 18px;
+                   font-family: var(--mono); font-size: 13.5px; box-shadow: 0 30px 60px rgb(0 0 0 / 35%); }
+        .dialogo-cab { display: flex; justify-content: space-between; color: #8b93a7; font-size: 12px; margin-bottom: 12px;
+                       font-family: -apple-system, system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+        .dialogo-cab span:first-child { color: var(--cliente); }
+        .dialogo-cab span:last-child { color: var(--agente); }
+        .turno { display: flex; margin: 7px 0; opacity: 0; animation: aparecer .4s ease forwards; }
+        .turno span { padding: 6px 11px; border-radius: 9px; max-width: 82%; line-height: 1.45; }
+        .turno.c { justify-content: flex-start; }
+        .turno.c span { background: rgb(245 158 11 / 12%); color: #fcd34d; border: 1px solid rgb(245 158 11 / 30%); }
+        .turno.a { justify-content: flex-end; }
+        .turno.a span { background: rgb(16 185 129 / 12%); color: #6ee7b7; border: 1px solid rgb(16 185 129 / 30%); }
+        .turno small { display: block; color: #8b93a7; font-size: 11.5px; }
+        .turno:nth-child(2) { animation-delay: .2s; } .turno:nth-child(3) { animation-delay: .6s; }
+        .turno:nth-child(4) { animation-delay: 1s; } .turno:nth-child(5) { animation-delay: 1.4s; }
+        .turno:nth-child(6) { animation-delay: 1.8s; } .turno:nth-child(7) { animation-delay: 2.2s; }
+        .turno:nth-child(8) { animation-delay: 2.6s; } .turno:nth-child(9) { animation-delay: 3s; }
+        @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .turno { animation: none; opacity: 1; } }
+
+        /* -- secciones ------------------------------------------------------------------------------------ */
+        section.bloque { padding: 76px 0; scroll-margin-top: 58px; }
+        section.bloque + section.bloque { border-top: 1px solid var(--borde); }
+        .antetitulo { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--enlace); margin: 0; }
+        h2 { font-family: var(--titular); font-weight: 800; font-size: clamp(30px, 4vw, 42px); line-height: 1.08; margin: 8px 0 14px; }
+        .bajada { color: var(--suave); font-size: 18.5px; max-width: 44em; margin: 0 0 36px; }
+        .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+        .tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: 16px; padding: 22px; }
+        .tarjeta h3 { margin: 0 0 6px; font-size: 18px; }
+        .tarjeta p { margin: 0; color: var(--suave); font-size: 15.5px; }
+        .icono { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 14px;
+                 background: #e7f7f0; color: #047857; font-weight: 800; font-family: var(--mono); font-size: 15px; }
+
+        /* Antes / con PACAI */
+        .comparacion { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 40px; }
+        .comparacion figure { margin: 0; background: var(--superficie); border: 1px solid var(--borde); border-radius: 16px; padding: 22px; }
+        .comparacion figcaption { font-weight: 700; margin-bottom: 10px; }
+        .comparacion figcaption small { display: block; font-weight: 400; color: var(--suave); font-size: 14.5px; }
+        .comparacion svg { width: 100%; height: auto; display: block; }
+        .comparacion .sin figcaption { color: #b45309; }
+        .comparacion .con figcaption { color: #047857; }
+
+        /* Qué no es */
+        .no-es { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }
+        .no-es div { border-left: 3px solid var(--borde); padding: 4px 0 4px 14px; }
+        .no-es b { display: block; }
+        .no-es span { color: var(--suave); font-size: 15px; }
+
+        /* Sesión */
+        .sesion { display: grid; grid-template-columns: 1fr 1.15fr; gap: 28px; align-items: start; }
+        ol.pasos { list-style: none; counter-reset: paso; margin: 0; padding: 0; }
+        ol.pasos li { counter-increment: paso; position: relative; padding: 0 0 18px 44px; }
+        ol.pasos li::before { content: counter(paso); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%;
+                              display: grid; place-items: center; font-weight: 800; font-size: 14px; background: var(--tinta); color: #fff; }
+        ol.pasos li.de-agente::before { background: var(--agente); color: #052e1f; }
+        ol.pasos li.de-cliente::before { background: var(--cliente); color: #3b2402; }
+        ol.pasos b { display: block; }
+        ol.pasos span { color: var(--suave); font-size: 15.5px; }
+        pre { margin: 0; background: var(--noche); color: #d5dae4; border-radius: 16px; padding: 18px 20px; overflow-x: auto;
+              font-family: var(--mono); font-size: 13px; line-height: 1.6; }
+        pre .c { color: var(--cliente); } pre .a { color: var(--agente); } pre .g { color: #7d8597; }
+        .leyenda { display: flex; gap: 18px; font-size: 14px; color: var(--suave); margin: 0 0 16px; }
+        .leyenda span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+        .leyenda .lc::before { background: var(--cliente); } .leyenda .la::before { background: var(--agente); }
+
+        /* Quién lo usa */
+        .usos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+        .uso { background: var(--superficie); border: 1px solid var(--borde); border-radius: 16px; padding: 22px; }
+        .uso .estado { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+                       padding: 3px 9px; border-radius: 999px; margin-bottom: 10px; }
+        .estado.hoy { background: #d1fae5; color: #065f46; }
+        .estado.pronto { background: #fef3c7; color: #92400e; }
+        .uso h3 { margin: 0 0 6px; }
+        .uso p { margin: 0; color: var(--suave); font-size: 15.5px; }
+
+        /* Empezar */
+        .empezar { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+        .empezar h3 { margin: 0 0 10px; font-size: 17px; }
+
+        footer.pie { background: var(--noche); color: #8b93a7; padding: 36px 0; font-size: 14.5px; }
+        footer.pie .ancho { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; }
+        footer.pie a { color: #c9cfdb; }
+
+        :focus-visible { outline: 3px solid var(--agente); outline-offset: 2px; border-radius: 6px; }
+
+        @media (max-width: 860px) {
+            .portada .ancho, .sesion, .empezar, .comparacion { grid-template-columns: 1fr; }
+            nav.menu { display: none; }
+            .portada { padding: 48px 0 60px; }
+            section.bloque { padding: 56px 0; }
+        }
+    </style>
+</head>
+<body>
+<header class="barra">
+    <div class="ancho">
+        <a class="logo" href="#">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1d2230"/>
+                <path d="M9 11h9M14 21h9" stroke="#34d399" stroke-width="3" stroke-linecap="round"/>
+                <path d="M16 8l3 3-3 3M17 18l-3 3 3 3" stroke="#fbbf24" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            PACAI
+        </a>
+        <nav class="menu" aria-label="Secciones">
+            <a href="#para-que">Para qué sirve</a>
+            <a href="#sesion">Cómo funciona</a>
+            <a href="#quien">Quién lo usa</a>
+            <a href="#empezar">Empezar</a>
+            <a href="https://github.com/0sw2ld0/PACAI">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+<section class="portada">
+    <div class="ancho">
+        <div>
+            <span class="etiqueta">Protocolo abierto · versión 0.3</span>
+            <h1>El idioma común entre <em>agentes de IA</em> y las apps que los muestran</h1>
+            <p class="entrada">El agente decide <strong>qué</strong> decir y hacer. La app decide <strong>cómo</strong>
+                mostrarlo. PACAI es el acuerdo entre los dos: mensajes, herramientas, permisos y subagentes, para que un
+                mismo agente funcione en una app de Mac, un móvil, un terminal, una web o un altavoz.</p>
+            <div class="botones">
+                <a class="boton boton-principal" href="https://github.com/0sw2ld0/PACAI">Ver en GitHub</a>
+                <a class="boton boton-secundario" href="https://github.com/0sw2ld0/PACAI/blob/main/spec/PACAI-0.3.md">Leer la especificación</a>
+            </div>
+            <p class="nombre-completo"><b>P</b>rotocol for <b>A</b>gent <b>C</b>ommunication <b>A</b>nd <b>I</b>nterfaces ·
+                licencia Apache-2.0</p>
+        </div>
+        <div class="dialogo" aria-label="Ejemplo: una app y un agente hablando en PACAI">
+            <div class="dialogo-cab"><span>App (cliente)</span><span>Agente</span></div>
+            <div class="turno c"><span>hello<small>versión 0.3 · perfil work</small></span></div>
+            <div class="turno c"><span>input<small>«Borra la carpeta build.»</small></span></div>
+            <div class="turno a"><span>run_started</span></div>
+            <div class="turno a"><span>message_delta<small>«Voy a borrar build/; antes te pido permiso.»</small></span></div>
+            <div class="turno a"><span>approval_request<small>rm -rf build · digest sha256:2f6e…</small></span></div>
+            <div class="turno c"><span>approval_result<small>aprobado · sólo esta vez</small></span></div>
+            <div class="turno a"><span>tool_end<small>build/ borrada</small></span></div>
+            <div class="turno a"><span>run_finished<small>success</small></span></div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="para-que">
+    <div class="ancho">
+        <p class="antetitulo">Para qué sirve</p>
+        <h2>Un agente, muchas pantallas. Una app, muchos agentes.</h2>
+        <p class="bajada">Sin un idioma común, cada app inventa su propia forma de hablar con cada agente: su formato de
+            mensajes, su manera de pedir permisos, sus reglas para interrumpir. Con PACAI, cualquier app que hable PACAI
+            puede mostrar a cualquier agente que lo hable.</p>
+
+        <div class="comparacion">
+            <figure class="sin">
+                <figcaption>Sin un idioma común<small>cada pareja agente–app, su propio pegamento</small></figcaption>
+                <svg viewBox="0 0 360 170" role="img" aria-label="Tres agentes conectados a tres apps con nueve conexiones distintas">
+                    <g stroke="#f59e0b" stroke-width="1.6" fill="none" stroke-dasharray="4 4" opacity=".75">
+                        <path d="M95 30 L265 30"/><path d="M95 30 L265 85"/><path d="M95 30 L265 140"/>
+                        <path d="M95 85 L265 30"/><path d="M95 85 L265 85"/><path d="M95 85 L265 140"/>
+                        <path d="M95 140 L265 30"/><path d="M95 140 L265 85"/><path d="M95 140 L265 140"/>
+                    </g>
+                    <g font-size="12" font-family="system-ui, sans-serif" fill="#141821">
+                        <rect x="10" y="16" width="85" height="28" rx="7" fill="#e7f7f0"/><text x="52" y="34" text-anchor="middle">Agente A</text>
+                        <rect x="10" y="71" width="85" height="28" rx="7" fill="#e7f7f0"/><text x="52" y="89" text-anchor="middle">Agente B</text>
+                        <rect x="10" y="126" width="85" height="28" rx="7" fill="#e7f7f0"/><text x="52" y="144" text-anchor="middle">Agente C</text>
+                        <rect x="265" y="16" width="85" height="28" rx="7" fill="#fef3c7"/><text x="307" y="34" text-anchor="middle">App de Mac</text>
+                        <rect x="265" y="71" width="85" height="28" rx="7" fill="#fef3c7"/><text x="307" y="89" text-anchor="middle">Móvil</text>
+                        <rect x="265" y="126" width="85" height="28" rx="7" fill="#fef3c7"/><text x="307" y="144" text-anchor="middle">Web</text>
+                    </g>
+                </svg>
+            </figure>
+            <figure class="con">
+                <figcaption>Con PACAI<small>cada uno habla PACAI una vez y se entiende con todos</small></figcaption>
+                <svg viewBox="0 0 360 170" role="img" aria-label="Tres agentes y tres apps conectados a través de PACAI">
+                    <g stroke="#10b981" stroke-width="2" fill="none">
+                        <path d="M95 30 L150 85"/><path d="M95 85 L150 85"/><path d="M95 140 L150 85"/>
+                        <path d="M210 85 L265 30"/><path d="M210 85 L265 85"/><path d="M210 85 L265 140"/>
+                    </g>
+                    <rect x="150" y="62" width="60" height="46" rx="10" fill="#141821"/>
+                    <text x="180" y="90" text-anchor="middle" font-size="13" font-weight="800" fill="#34d399"
+                          font-family="system-ui, sans-serif">PACAI</text>
+                    <g font-size="12" font-family="system-ui, sans-serif" fill="#141821">
+                        <rect x="10" y="16" width="85" height="28" rx="7" fill="#e7f7f0"/><text x="52" y="34" text-anchor="middle">Agente A</text>
+                        <rect x="10" y="71" width="85" height="28" rx="7" fill="#e7f7f0"/><text x="52" y="89" text-anchor="middle">Agente B</text>
+                        <rect x="10" y="126" width="85" height="28" rx="7" fill="#e7f7f0"/><text x="52" y="144" text-anchor="middle">Agente C</text>
+                        <rect x="265" y="16" width="85" height="28" rx="7" fill="#fef3c7"/><text x="307" y="34" text-anchor="middle">App de Mac</text>
+                        <rect x="265" y="71" width="85" height="28" rx="7" fill="#fef3c7"/><text x="307" y="89" text-anchor="middle">Móvil</text>
+                        <rect x="265" y="126" width="85" height="28" rx="7" fill="#fef3c7"/><text x="307" y="144" text-anchor="middle">Web</text>
+                    </g>
+                </svg>
+            </figure>
+        </div>
+
+        <div class="rejilla">
+            <div class="tarjeta"><div class="icono">✓</div><h3>Permisos que no se cuelan</h3>
+                <p>Antes de una acción delicada, el agente pide permiso con los argumentos exactos y su huella (JCS y
+                    SHA-256). Se aprueba una vez o para la sesión. El silencio nunca cuenta como un sí.</p></div>
+            <div class="tarjeta"><div class="icono">⇉</div><h3>Subagentes y trabajo en paralelo</h3>
+                <p>Un agente puede lanzar otros, también en segundo plano. La app ve quién hace qué, y al interrumpir se
+                    para todo en cascada.</p></div>
+            <div class="tarjeta"><div class="icono">↻</div><h3>Reanudar sin perder nada</h3>
+                <p>Si se corta la conexión, la app vuelve donde estaba: el agente reenvía lo que faltaba o manda una foto
+                    del estado. Nunca repite una ejecución ya terminada.</p></div>
+            <div class="tarjeta"><div class="icono">⚙</div><h3>Herramientas en los dos lados</h3>
+                <p>Las herramientas pueden correr en el agente o en la app, que declara al empezar las que ofrece. Viajan
+                    con los argumentos reales y los secretos tachados.</p></div>
+            <div class="tarjeta"><div class="icono">＋</div><h3>Perfiles y extensiones</h3>
+                <p>Lo opcional se negocia al empezar: voz, estado compartido, plan y diff, o la expresión de un personaje.
+                    Cada producto añade lo suyo con su propio espacio de nombres.</p></div>
+            <div class="tarjeta"><div class="icono">⇄</div><h3>Por donde haga falta</h3>
+                <p>Un mensaje JSON por línea por stdio, o por WebSocket o SSE. Con AG-UI no hace falta un puente: la
+                    especificación explica la correspondencia.</p></div>
+        </div>
+
+        <h3 style="margin: 44px 0 0;">Qué no es</h3>
+        <div class="no-es">
+            <div><b>No es el agente</b><span>Cómo piensa, su memoria o su personalidad viven en el agente. PACAI sólo
+                lleva lo que decide expresar.</span></div>
+            <div><b>No es MCP</b><span>MCP conecta al agente con sus herramientas. PACAI lo conecta con quien lo usa.</span></div>
+            <div><b>No es A2A</b><span>A2A es para que dos agentes hablen entre sí.</span></div>
+            <div><b>No es A2UI</b><span>Un vocabulario de componentes visuales puede viajar dentro de PACAI, en un
+                bloque <code>structured</code>.</span></div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="sesion">
+    <div class="ancho">
+        <p class="antetitulo">Cómo funciona</p>
+        <h2>Una sesión de principio a fin</h2>
+        <p class="bajada">La persona pide borrar una carpeta. El agente lo anuncia, pide permiso para la orden, la
+            ejecuta y termina. Todos los mensajes comparten el mismo sobre: <code>pacai</code>, <code>id</code>,
+            <code>type</code>, <code>session</code>, <code>sender</code>, <code>seq</code>, <code>time</code> y
+            <code>payload</code>.</p>
+        <div class="sesion">
+            <ol class="pasos">
+                <li class="de-cliente"><b>Se presentan</b><span>Los dos mandan <code>hello</code> y acuerdan versión,
+                    perfiles y extensiones. El agente responde con <code>session_started</code>.</span></li>
+                <li class="de-cliente"><b>La app pide algo</b><span>Un <code>input</code> con el texto de la persona.
+                    Puede mandarlo justo después de su <code>hello</code>, sin esperar.</span></li>
+                <li class="de-agente"><b>El agente trabaja</b><span><code>run_started</code> abre la ejecución; el texto
+                    llega por partes con <code>message_start</code>, <code>message_delta</code> y
+                    <code>message_end</code>.</span></li>
+                <li class="de-agente"><b>Pide permiso</b><span><code>tool_start</code> anuncia la orden y
+                    <code>approval_request</code> la repite con su huella. Nada corre sin respuesta.</span></li>
+                <li class="de-cliente"><b>La persona decide</b><span><code>approval_result</code> aprueba (una vez o
+                    para la sesión) o niega.</span></li>
+                <li class="de-agente"><b>Termina</b><span><code>tool_end</code> con el resultado y
+                    <code>run_finished</code> con el desenlace.</span></li>
+            </ol>
+            <div>
+                <p class="leyenda"><span class="lc">lo envía la app</span><span class="la">lo envía el agente</span></p>
+<pre><span class="g"># un mensaje JSON por línea (stdio)</span>
+<span class="c">{"type":"hello","sender":"client","seq":1, …}</span>
+<span class="a">{"type":"hello","sender":"agent","seq":1, …}</span>
+<span class="a">{"type":"session_started","reply_to":"m_01", …}</span>
+<span class="c">{"type":"input","payload":{"blocks":[
+  {"type":"text","text":"Borra la carpeta build."}]}}</span>
+<span class="a">{"type":"run_started","id":"m_05", …}</span>
+<span class="a">{"type":"message_delta","payload":{"blocks":[
+  {"type":"text","text":"Voy a borrar build/…"}]}}</span>
+<span class="a">{"type":"tool_start","payload":{"name":"run_command",
+  "arguments":{"argv":["rm","-rf","build"]}}}</span>
+<span class="a">{"type":"approval_request","payload":{
+  "digest":"sha256:2f6e57e2…","scopes":["once"]}}</span>
+<span class="c">{"type":"approval_result","payload":
+  {"decision":"approved","scope":"once"}}</span>
+<span class="a">{"type":"tool_end","payload":{"status":"success"}}</span>
+<span class="a">{"type":"run_finished","payload":{"outcome":"success"}}</span></pre>
+                <p style="font-size: 14.5px; color: var(--suave); margin: 12px 0 0;">Es el ejemplo
+                    <a href="https://github.com/0sw2ld0/PACAI/blob/main/conformance/valid/18-sesion-tipica.jsonl"><code>18-sesion-tipica.jsonl</code></a>,
+                    resumido; el verificador de conformidad lo comprueba entero.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="quien">
+    <div class="ancho">
+        <p class="antetitulo">Quién lo usa</p>
+        <h2>Nació implementándolo de verdad</h2>
+        <p class="bajada">Cada versión de PACAI sale de usarla en un agente real: lo que fallaba al implementarla se
+            corrigió en la siguiente.</p>
+        <div class="usos">
+            <div class="uso"><span class="estado hoy">Hoy</span><h3><a href="https://github.com/0sw2ld0/AlfalfaCode">AlfalfaCode</a></h3>
+                <p>Agente de programación. Habla PACAI 0.3 con <code>alfalfa --pacai</code> desde la versión 0.99.22, y su
+                    app de Mac lo usa desde la 0.99.23.</p></div>
+            <div class="uso"><span class="estado hoy">Hoy</span><h3>Clientes de ejemplo</h3>
+                <p>Un cliente pequeño en Python, en el propio repositorio, que lanza AlfalfaCode y comprueba la sesión
+                    mensaje a mensaje.</p></div>
+            <div class="uso"><span class="estado pronto">En camino</span><h3>CuyWorld</h3>
+                <p>El director de juego de CuyWorld, el siguiente paso de la hoja de ruta.</p></div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="empezar">
+    <div class="ancho">
+        <p class="antetitulo">Empezar</p>
+        <h2>Qué trae el repositorio</h2>
+        <p class="bajada">La especificación, el esquema JSON para validar mensajes, ejemplos con un verificador de
+            conformidad, un SDK de Python y un paquete Swift (macOS 14 e iOS 17).</p>
+        <div class="empezar">
+            <div>
+                <h3>Un agente mínimo en Python</h3>
+<pre><span class="g"># pip install -e sdk/python</span>
+from pacai import MessageBuilder, StdioTransport
+
+canal = StdioTransport()
+for m in canal:
+    if m['type'] == 'hello':
+        agente = MessageBuilder('agent', m['session'])
+        canal.send(agente.hello(profiles=['work']))
+        canal.send(agente.session_started(m['id'], profiles=['work']))
+    elif m['type'] == 'input':
+        run = agente.run_started(m['id'])
+        canal.send(run)
+        for parte in agente.text_message(run['id'], 'Hola.'):
+            canal.send(parte)
+        canal.send(agente.run_finished(run['id']))</pre>
+            </div>
+            <div>
+                <h3>Comprobar una sesión</h3>
+<pre><span class="g"># todas las sesiones de ejemplo, válidas e inválidas</span>
+python3 conformance/verificar.py
+
+<span class="g"># una sesión tuya, guardada como JSONL</span>
+python3 conformance/verificar.py sesion.jsonl</pre>
+                <h3 style="margin-top: 22px;">Leer más</h3>
+                <p style="margin: 0; color: var(--suave);">
+                    <a href="https://github.com/0sw2ld0/PACAI/blob/main/spec/PACAI-0.3.md">Especificación 0.3</a> ·
+                    <a href="https://github.com/0sw2ld0/PACAI/blob/main/schema/pacai-0.3.schema.json">esquema JSON</a> ·
+                    <a href="https://github.com/0sw2ld0/PACAI/tree/main/conformance/valid">sesiones de ejemplo</a> ·
+                    <a href="https://github.com/0sw2ld0/PACAI/tree/main/propuestas">propuestas para la 0.4</a> ·
+                    <a href="https://github.com/0sw2ld0/PACAI/blob/main/README.en.md">README in English</a></p>
+            </div>
+        </div>
+    </div>
+</section>
+</main>
+
+<footer class="pie">
+    <div class="ancho">
+        <span>PACAI 0.3 · especificación, esquema y SDK bajo licencia
+            <a href="https://github.com/0sw2ld0/PACAI/blob/main/LICENSE">Apache-2.0</a></span>
+        <span><a href="https://github.com/0sw2ld0/PACAI">github.com/0sw2ld0/PACAI</a></span>
+    </div>
+</footer>
+</body>
+</html>
