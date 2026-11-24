@@ -156,6 +156,7 @@ Fíjate en:
 | Ruta | Qué es |
 |---|---|
 | [`spec/PACAI-0.3.md`](spec/PACAI-0.3.md) | La especificación, con identificadores en inglés y prosa en español |
+| [`spec/perfiles/ui.md`](spec/perfiles/ui.md) | El perfil `ui` (borrador): el agente dibuja pantallas en el chat; su esquema es `schema/pacai-ui-1.schema.json` |
 | [`spec/historico/`](spec/historico/) | Las versiones anteriores: la 0.2 y el borrador 0.1 |
 | `schema/pacai-0.3.schema.json` | El esquema JSON, generado por `schema/generar.py` (el de la 0.2, en `schema/historico/`) |
 | `conformance/` | Ejemplos válidos, ejemplos inválidos y el verificador |
@@ -187,7 +188,7 @@ El verificador usa las reglas de sesión del SDK de Python (`pacai.Session`), as
 - **Subagentes:** un `run_started` con `parent_run_id` es una subejecución, y lleva `tool_call_id` si la lanzó una herramienta. Puede haber varias a la vez, también en segundo plano (la herramienta vuelve antes); se interrumpen en cascada y cierran antes que su madre.
 - **Aprobaciones:** con digest JCS de los argumentos, caducidad opcional y alcance `once` o `session`. Una aprobación `session` se reutiliza con `tool_start.approval_id`, solo para el mismo digest. Al terminar o interrumpir, el agente las resuelve con `cancelled`. El silencio nunca cuenta como un sí.
 - **Reanudación:** `hello` con `resume_after_seq`; el agente reenvía lo retenido o responde con `snapshot`. Nunca relanza una ejecución terminada.
-- **Perfiles opcionales:** `voice`, `shared_state`, `work` (plan y diff) y `expression` (emoción, gesto y voz del personaje).
+- **Perfiles opcionales:** `voice`, `shared_state`, `work` (plan y diff) `expression` (emoción, gesto y voz del personaje) y, en borrador, [`ui`](spec/perfiles/ui.md) (pantallas en el chat).
 - **Extensiones:** con espacio de nombres, como `alfalfa.budget`.
 - **Transportes:** stdio (JSONL), WebSocket y SSE.
 - **AG-UI:** no hace falta puente; el anexo C explica la correspondencia y qué se pierde.

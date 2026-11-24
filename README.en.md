@@ -68,6 +68,7 @@ SSE transport. See the [AlfalfaCode integration guide](https://github.com/0sw2ld
 | Resource | Use |
 | --- | --- |
 | [PACAI 0.3 specification](spec/PACAI-0.3.md) | Message types, state transitions, negotiation, and transports |
+| [`ui` profile (draft, Spanish)](spec/perfiles/ui.md) | Let the agent draw screens in the chat; schema in `schema/pacai-ui-1.schema.json` |
 | [JSON Schema](schema/pacai-0.3.schema.json) | Validate the structure of individual messages |
 | [Conformance suite](conformance/) | Check sample transcripts and verify your own sessions |
 | [Python SDK](sdk/python/README.md) | Build messages, read and write JSONL, and validate session rules |
