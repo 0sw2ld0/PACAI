@@ -7,7 +7,7 @@ agent and its client exchange messages, track runs, call tools, and ask for
 approval. A client can use those events to present the same agent in a
 desktop app, a terminal, or another interface.
 
-Website: <https://0sw2ld0.github.io/PACAI/> (in Spanish).
+Website: <https://docs.pacai.dev/> (in Spanish).
 
 This repository covers PACAI 0.3 and includes the protocol specification, a
 JSON Schema, conformance examples, and SDKs for Python and Swift. The

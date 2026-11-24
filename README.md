@@ -4,7 +4,7 @@ Español · [English](README.en.md)
 
 **Protocol for Agent Communication And Interfaces.** Un idioma común entre agentes (AlfalfaCode, Chiyo, el director de juego de CuyWorld…) y los clientes que los muestran: apps de Mac y móvil, widgets, terminales, webs y voz.
 
-> Estado: **0.3 cerrada** en lo técnico, con licencia Apache-2.0. Sale de implementar la 0.2 en AlfalfaCode; los cambios están en el §11 de la especificación. El repositorio es público; queda por comprobar el nombre (anexo B de la especificación). Página: <https://0sw2ld0.github.io/PACAI/>.
+> Estado: **0.3 cerrada** en lo técnico, con licencia Apache-2.0. Sale de implementar la 0.2 en AlfalfaCode; los cambios están en el §11 de la especificación. El repositorio es público; queda por comprobar el nombre (anexo B de la especificación). Página: <https://docs.pacai.dev/>.
 
 ## Qué es PACAI
 
