@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PACAI · pantallas en el chat y UI Lang</title>
+    <meta name="description" content="Cómo viaja una pantalla del agente a la app con el perfil ui de PACAI, y por qué un agente puede dejar que su modelo la escriba en una forma abreviada como PACAI UI Lang.">
+    <meta property="og:title" content="PACAI · pantallas en el chat y UI Lang">
+    <meta property="og:description" content="Por PACAI viaja siempre el formato oficial. Lo que escribe el modelo es asunto del agente.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23141821'/%3E%3Cpath d='M9 11h9M14 21h9' stroke='%2334d399' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M16 8l3 3-3 3M17 18l-3 3 3 3' stroke='%23fbbf24' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <style>
+        :root {
+            --papel: #f7f6f2;
+            --superficie: #ffffff;
+            --tinta: #141821;
+            --suave: #5b6170;
+            --borde: #e3e1da;
+            --noche: #141821;
+            --noche-2: #1d2230;
+            --agente: #10b981;     /* lo que envía el agente */
+            --cliente: #f59e0b;    /* lo que envía el cliente */
+            --modelo: #8b5cf6;     /* lo que escribe el modelo, dentro del agente */
+            --enlace: #0f766e;
+            --titular: "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+            --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+            font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            color-scheme: light;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--papel); color: var(--tinta); }
+        a { color: var(--enlace); }
+        code { font-family: var(--mono); font-size: .88em; background: #ecebe5; padding: 1px 5px; border-radius: 5px; }
+        .ancho { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+        .lectura { max-width: 44em; }
+
+        header.barra { position: sticky; top: 0; z-index: 5; background: rgb(20 24 33 / 92%); backdrop-filter: blur(8px); }
+        header.barra .ancho { display: flex; align-items: center; justify-content: space-between; height: 58px; }
+        .logo { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-family: var(--titular);
+                font-weight: 800; font-size: 22px; letter-spacing: .04em; }
+        .logo svg { width: 28px; height: 28px; }
+        nav.menu { display: flex; gap: 22px; }
+        nav.menu a { color: #c9cfdb; text-decoration: none; font-size: 15px; }
+        nav.menu a:hover, nav.menu a:focus-visible { color: #fff; }
+
+        .portada { background: var(--noche); color: #fff; padding: 64px 0 72px; }
+        .etiqueta { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+                    color: var(--agente); border: 1px solid rgb(16 185 129 / 40%); padding: 4px 10px; border-radius: 999px; }
+        h1 { font-family: var(--titular); font-weight: 800; font-size: clamp(36px, 5.5vw, 56px); line-height: 1.04; margin: 18px 0 18px;
+             letter-spacing: -.01em; max-width: 16em; }
+        h1 em { font-style: normal; color: var(--agente); }
+        .portada p.entrada { font-size: 19px; color: #c9cfdb; margin: 0; max-width: 38em; }
+        .portada p.entrada strong { color: #fff; }
+        .portada code { background: var(--noche-2); color: #6ee7b7; border: 1px solid #2c3345; }
+
+        section.bloque { padding: 68px 0; scroll-margin-top: 58px; }
+        section.bloque + section.bloque { border-top: 1px solid var(--borde); }
+        .antetitulo { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--enlace); margin: 0; }
+        h2 { font-family: var(--titular); font-weight: 800; font-size: clamp(28px, 4vw, 40px); line-height: 1.08; margin: 8px 0 14px; }
+        h3 { margin: 0 0 6px; font-size: 18px; }
+        .bajada { color: var(--suave); font-size: 18.5px; max-width: 44em; margin: 0 0 32px; }
+        .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+        .rejilla > * { min-width: 0; }
+        .tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: 16px; padding: 22px; }
+        .tarjeta p { margin: 0; color: var(--suave); font-size: 15.5px; }
+        .tarjeta p + p { margin-top: 10px; }
+        .marca { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+                 padding: 3px 9px; border-radius: 999px; margin-bottom: 10px; }
+        .marca.oficial { background: #d1fae5; color: #065f46; }
+        .marca.interna { background: #ede9fe; color: #5b21b6; }
+
+        .lado { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .lado > * { min-width: 0; }
+        .rotulo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; color: var(--suave); margin: 0 0 8px; }
+        .rotulo b { color: var(--tinta); }
+        .rotulo .tok { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+        pre { margin: 0; background: var(--noche); color: #d5dae4; border-radius: 16px; padding: 18px 20px; overflow-x: auto;
+              font-family: var(--mono); font-size: 13px; line-height: 1.6; }
+        pre .c { color: var(--cliente); } pre .a { color: var(--agente); } pre .g { color: #7d8597; } pre .m { color: #c4b5fd; }
+        .nota { font-size: 14.5px; color: var(--suave); margin: 12px 0 0; }
+
+        .tarjeta-ui { background: var(--superficie); border: 1px solid var(--borde); border-radius: 14px; padding: 18px 20px; max-width: 320px; }
+        .tarjeta-ui .t { font-family: var(--titular); font-weight: 800; font-size: 22px; line-height: 1.1; }
+        .tarjeta-ui .m { font-size: 13px; color: var(--suave); }
+        .tarjeta-ui .x { margin-top: 8px; font-size: 15.5px; }
+        .tarjeta-ui .b { margin-top: 14px; display: inline-block; background: var(--agente); color: #052e1f; border-radius: 10px;
+                         padding: 8px 16px; font-weight: 700; font-size: 15px; }
+
+        figure { margin: 0; }
+        .diagrama { background: var(--superficie); border: 1px solid var(--borde); border-radius: 16px; padding: 16px; overflow-x: auto; }
+        .diagrama svg { display: block; width: 100%; min-width: 700px; height: auto; }
+        figcaption { font-size: 14.5px; color: var(--suave); margin-top: 12px; max-width: 48em; }
+
+        ul.limites { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+        ul.limites li { border-left: 3px solid var(--borde); padding: 2px 0 2px 14px; }
+        ul.limites b { display: block; }
+        ul.limites span { color: var(--suave); font-size: 15.5px; }
+
+        .tabla { overflow-x: auto; background: var(--superficie); border: 1px solid var(--borde); border-radius: 16px; }
+        table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+        th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+        tr:last-child td { border-bottom: 0; }
+        th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); }
+        td.n { text-align: right; white-space: nowrap; }
+        td.mejor { color: #047857; font-weight: 700; }
+
+        footer.pie { background: var(--noche); color: #8b93a7; padding: 36px 0; font-size: 14.5px; }
+        footer.pie .ancho { display: flex; flex-wrap: wrap; gap: 14px 28px; justify-content: space-between; }
+        footer.pie a { color: #c9cfdb; }
+
+        :focus-visible { outline: 3px solid var(--agente); outline-offset: 2px; border-radius: 6px; }
+
+        @media (max-width: 860px) {
+            .lado { grid-template-columns: 1fr; }
+            nav.menu { display: none; }
+            .portada { padding: 44px 0 52px; }
+            section.bloque { padding: 52px 0; }
+        }
+    </style>
+</head>
+<body>
+<header class="barra">
+    <div class="ancho">
+        <a class="logo" href="./">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1d2230"/>
+                <path d="M9 11h9M14 21h9" stroke="#34d399" stroke-width="3" stroke-linecap="round"/>
+                <path d="M16 8l3 3-3 3M17 18l-3 3 3 3" stroke="#fbbf24" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            PACAI
+        </a>
+        <nav class="menu" aria-label="Secciones">
+            <a href="#piezas">Las piezas</a>
+            <a href="#ejemplo">Un ejemplo</a>
+            <a href="#recorrido">El recorrido</a>
+            <a href="#medidas">Medidas</a>
+            <a href="./">Inicio</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+<section class="portada">
+    <div class="ancho">
+        <span class="etiqueta">Perfil ui · borrador</span>
+        <h1>Pantallas en el chat: el <em>formato oficial</em> y la taquigrafía del modelo</h1>
+        <p class="entrada">Con el perfil <code>ui</code>, un agente puede dibujar tarjetas, tablas y formularios en el chat.
+            <strong>Por PACAI viaja siempre el formato oficial, <code>pacai.ui/1</code>.</strong> Cómo lo escribe el modelo
+            por dentro es asunto del agente: puede usar una forma abreviada, como PACAI UI Lang, si la traduce antes de
+            mandarla. La app nunca nota la diferencia.</p>
+    </div>
+</section>
+
+<section class="bloque" id="piezas">
+    <div class="ancho">
+        <p class="antetitulo">Las piezas</p>
+        <h2>Qué es parte del protocolo y qué no</h2>
+        <p class="bajada">Un modelo de lenguaje cobra por cada token que lee y escribe. Escribir pantallas en JSON gasta mucho
+            en puntuación. Una forma abreviada gasta menos, y el protocolo no tiene por qué cambiar para eso.</p>
+        <div class="rejilla">
+            <div class="tarjeta"><span class="marca oficial">Protocolo</span><h3>PACAI</h3>
+                <p>El idioma entre un agente y la app que lo muestra: mensajes, herramientas, permisos, subagentes. Una app de
+                    Mac, VS Code o una web lo hablan igual.</p></div>
+            <div class="tarjeta"><span class="marca oficial">Protocolo</span><h3>Perfil <code>ui</code></h3>
+                <p>La parte opcional de PACAI para dibujar pantallas. Cada pantalla es una lista de nodos de un catálogo que
+                    declara la app, y viaja en un bloque <code>structured</code> con <code>schema: "pacai.ui/1"</code>.</p></div>
+            <div class="tarjeta"><span class="marca interna">Dentro del agente</span><h3>PACAI UI Lang</h3>
+                <p>Una forma compacta de escribir los mismos nodos: una línea por pieza, sin llaves. La usa el modelo de
+                    <a href="https://github.com/0sw2ld0/AlfalfaCode">AlfalfaCode</a>, y su motor la traduce a
+                    <code>pacai.ui/1</code> antes de mandarla.</p>
+                <p>No forma parte del protocolo. Otro agente puede usar JSON, su propia forma abreviada o lo que quiera.</p></div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="ejemplo">
+    <div class="ancho">
+        <p class="antetitulo">Un ejemplo</p>
+        <h2>Una tarjeta, de punta a punta</h2>
+        <p class="bajada">Alguien escribe «Enséñame la palta». El modelo responde con una tarjeta que lleva un título, una
+            línea de texto y un botón. Los bloques son de una ejecución real del motor de AlfalfaCode 0.99.56.</p>
+
+        <h3>1. Lo que escribe el modelo</h3>
+        <p class="nota" style="margin: 0 0 14px;">El motor de AlfalfaCode le enseña al modelo uno de los dos formatos; el modelo
+            no elige.</p>
+        <div class="lado">
+            <div>
+                <p class="rotulo"><b>En PACAI UI Lang 3</b><span class="tok">49 tokens</span></p>
+<pre><span class="g">```pacai-ui-lang view=palta</span>
+<span class="m">root Card "Palta Hass" meta="hoy · fruta" &gt; nota,ver
+nota Text "Sube un 3 % esta semana."
+ver Button "Ver historial" variant=primary @press={"send":"ver_historial"}</span>
+<span class="g">```</span></pre>
+            </div>
+            <div>
+                <p class="rotulo"><b>En JSON</b><span class="tok">86 tokens</span></p>
+<pre><span class="g">```pacai-ui view=palta</span>
+<span class="m">{"id":"root","component":"Card","props":{"title":"Palta Hass","meta":"hoy · fruta"},"children":["nota","ver"]}
+{"id":"nota","component":"Text","props":{"text":"Sube un 3 % esta semana."}}
+{"id":"ver","component":"Button","props":{"label":"Ver historial","variant":"primary"},"events":{"press":{"send":"ver_historial"}}}</span>
+<span class="g">```</span></pre>
+            </div>
+        </div>
+        <p class="nota">Cada línea de UI Lang se lee <code>id Componente "texto principal" clave=valor &gt; hijos</code>, y
+            <code>@press={…}</code> dice qué hace el botón. Tokens contados con <code>o200k_base</code>, sólo las tres líneas.</p>
+
+        <h3 style="margin-top: 40px;">2. Lo que manda el agente por PACAI, igual en los dos casos</h3>
+        <p class="nota" style="margin: 0 0 14px;">Al cerrar el mensaje, el agente manda la foto completa de la pantalla
+            (<code>op: "replace"</code>). Con UI Lang y con JSON sale idéntica.</p>
+        <div class="lado">
+<pre><span class="a">{"type":"message_end","payload":{"blocks":[
+ {"type":"structured","schema":"pacai.ui/1","data":{
+  "view":"palta","op":"replace","rev":2,
+  "nodes":[
+   {"id":"root","component":"Card",
+    "props":{"title":"Palta Hass","meta":"hoy · fruta"},
+    "children":["nota","ver"]},
+   {"id":"nota","component":"Text",
+    "props":{"text":"Sube un 3 % esta semana."}},
+   {"id":"ver","component":"Button",
+    "props":{"label":"Ver historial","variant":"primary"},
+    "events":{"press":{"send":"ver_historial"}}}],
+  "alt":"Pantalla: Palta Hass · Sube un 3 % esta semana. · Ver historial"
+ }}]}}</span></pre>
+            <div>
+                <p class="rotulo"><b>Y la app la dibuja a su manera</b><span>(ilustración)</span></p>
+                <div class="tarjeta-ui" role="img" aria-label="Tarjeta de ejemplo: Palta Hass, hoy · fruta, Sube un 3 % esta semana, botón Ver historial">
+                    <div class="t">Palta Hass</div>
+                    <div class="m">hoy · fruta</div>
+                    <div class="x">Sube un 3 % esta semana.</div>
+                    <span class="b">Ver historial</span>
+                </div>
+                <p class="nota">Colores, letra y márgenes los pone cada app: la de Mac con SwiftUI, VS Code con su tema. La
+                    pantalla sólo dice <em>qué</em> hay.</p>
+                <p class="nota">La revisión (<code>rev</code>) la pone siempre el agente; el modelo nunca la escribe.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="recorrido">
+    <div class="ancho">
+        <p class="antetitulo">El recorrido</p>
+        <h2>Hasta dónde llega la taquigrafía</h2>
+        <figure>
+            <div class="diagrama">
+                <svg viewBox="0 0 900 330" role="img" aria-label="El modelo escribe la pantalla en UI Lang o en JSON; el motor del agente la traduce, valida, repara y numera; por PACAI sale siempre pacai.ui/1 hacia la app, que la dibuja; la pulsación vuelve por PACAI al agente y de ahí al modelo.">
+                    <defs>
+                        <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                            <path d="M0,0 L10,5 L0,10 z" fill="#141821"/>
+                        </marker>
+                        <marker id="punta-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                            <path d="M0,0 L10,5 L0,10 z" fill="#10b981"/>
+                        </marker>
+                    </defs>
+                    <!-- caja del agente -->
+                    <rect x="10" y="20" width="540" height="210" rx="16" fill="#f7f6f2" stroke="#e3e1da" stroke-width="1.5"/>
+                    <text x="26" y="44" font-family="system-ui, sans-serif" font-size="12" font-weight="800" letter-spacing="1" fill="#5b6170">AGENTE (ALFALFACODE)</text>
+                    <rect x="30" y="72" width="150" height="110" rx="12" fill="#ede9fe"/>
+                    <rect x="280" y="56" width="250" height="150" rx="12" fill="#e7f7f0"/>
+                    <rect x="700" y="72" width="180" height="110" rx="12" fill="#fef3c7"/>
+                    <g font-family="system-ui, sans-serif" font-size="13" fill="#141821" text-anchor="middle">
+                        <text x="105" y="117" font-size="16" font-weight="800">Modelo</text>
+                        <text x="105" y="138">el que escribe</text>
+                        <text x="105" y="155">las pantallas</text>
+                        <text x="405" y="82" font-size="16" font-weight="800">Motor</text>
+                        <text x="405" y="106">1. traduce a nodos</text>
+                        <text x="405" y="127">2. valida con el catálogo</text>
+                        <text x="405" y="148">3. repara lo seguro</text>
+                        <text x="405" y="169">4. pone la revisión (rev)</text>
+                        <text x="790" y="117" font-size="16" font-weight="800">App</text>
+                        <text x="790" y="138">Mac, VS Code, web</text>
+                        <text x="790" y="155">dibuja la pantalla</text>
+                    </g>
+                    <!-- ida -->
+                    <line x1="182" y1="112" x2="276" y2="112" stroke="#141821" stroke-width="1.6" marker-end="url(#punta)"/>
+                    <text x="229" y="101" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#5b21b6" text-anchor="middle">UI Lang</text>
+                    <text x="229" y="130" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#5b21b6" text-anchor="middle">o JSON</text>
+                    <line x1="532" y1="112" x2="696" y2="112" stroke="#10b981" stroke-width="3" marker-end="url(#punta-v)"/>
+                    <text x="614" y="101" font-family="ui-monospace, Menlo, monospace" font-size="12" font-weight="700" fill="#047857" text-anchor="middle">PACAI · pacai.ui/1</text>
+                    <text x="614" y="130" font-family="system-ui, sans-serif" font-size="12" fill="#5b6170" text-anchor="middle">siempre el mismo formato</text>
+                    <!-- vuelta -->
+                    <polyline points="790,184 790,282 430,282 430,210" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="3 4" marker-end="url(#punta)"/>
+                    <text x="610" y="273" font-family="system-ui, sans-serif" font-size="12" fill="#5b6170" text-anchor="middle">la persona pulsa «Ver historial»</text>
+                    <text x="610" y="300" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="#92400e" text-anchor="middle">PACAI · input · pacai.ui.action/1</text>
+                    <polyline points="330,210 330,262 105,262 105,186" fill="none" stroke="#141821" stroke-width="1.6" stroke-dasharray="3 4" marker-end="url(#punta)"/>
+                    <text x="218" y="254" font-family="system-ui, sans-serif" font-size="12" fill="#5b6170" text-anchor="middle">un mensaje más del usuario</text>
+                </svg>
+            </div>
+            <figcaption>Todo lo morado se queda dentro del agente. Entre el agente y la app (en verde a la ida y en ámbar a la
+                vuelta) sólo viaja PACAI. Si mañana el agente cambia de forma abreviada, o deja de usarla, ninguna app tiene
+                que cambiar.</figcaption>
+        </figure>
+
+        <div class="lado" style="margin-top: 28px;">
+            <div>
+                <p class="rotulo"><b>Lo que manda la app al pulsar</b></p>
+<pre><span class="c">{"type":"input","payload":{"blocks":[
+ {"type":"text","text":"Ver historial"},
+ {"type":"structured","schema":"pacai.ui.action/1",
+  "data":{"view":"palta","rev":2,"node":"ver",
+   "event":"press","name":"ver_historial",
+   "values":{}}}]}}</span></pre>
+            </div>
+            <div>
+                <p class="rotulo"><b>Lo que lee después el modelo de AlfalfaCode</b></p>
+<pre><span class="g">Ver historial
+
+[Acción en la pantalla] {"view": "palta", "node": "ver",
+ "event": "press", "name": "ver_historial", "values": {}}
+Pantalla palta ahora:</span>
+<span class="m">root Card "Palta Hass" meta="hoy · fruta" &gt; nota,ver
+nota Text "Sube un 3 % esta semana."
+ver Button "Ver historial" variant=primary @press={…}</span></pre>
+            </div>
+        </div>
+        <p class="nota">El bloque de texto del <code>input</code> es lo que la persona «dijo»: una app o un registro que no
+            dibuje pantallas lo entiende igual.</p>
+    </div>
+</section>
+
+<section class="bloque">
+    <div class="ancho">
+        <div class="lectura">
+            <p class="antetitulo">Una analogía</p>
+            <h2>La libreta del mozo</h2>
+            <p>En un restaurante, el mozo apunta en su libreta «2 lomo s/ceb». En caja lo pasan al sistema, y en la cocina sale
+                una comanda impresa con todo escrito: «Lomo saltado ×2, sin cebolla, mesa 4». La cocina nunca ve la libreta.</p>
+            <p>La libreta es UI Lang, la comanda impresa es <code>pacai.ui/1</code>, la caja es el motor del agente y la cocina
+                es la app. Un mozo que no usa abreviaturas apunta todo completo (JSON), y la cocina no nota la diferencia.</p>
+            <h3 style="margin-top: 28px;">Dónde deja de valer</h3>
+            <ul class="limites">
+                <li><b>La caja no adivina.</b><span>Si una línea no cumple el catálogo, el motor no la interpreta: la rechaza y le
+                    pide al modelo que la corrija. Sólo hace unos pocos arreglos que no cambian lo pedido, como renombrar a
+                    <code>root</code> una raíz que se llama <code>raiz</code>.</span></li>
+                <li><b>La forma abreviada no es más fiable por sí sola.</b><span>Ahorra tokens, pero cada formato tiene sus
+                    fallos. Las medidas de abajo lo dicen.</span></li>
+                <li><b>El mozo relee su libreta.</b><span>El modelo ve en su historial lo que escribió y la pantalla en forma
+                    abreviada, y la usa para el cambio siguiente. En un restaurante nadie corrige la comanda releyendo la
+                    libreta.</span></li>
+                <li><b>No hay nadie en caja.</b><span>La traducción es automática y exacta: la misma entrada da siempre la misma
+                    salida.</span></li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="bloque">
+    <div class="ancho">
+        <p class="antetitulo">Qué cambia</p>
+        <h2>Para quién cambia algo</h2>
+        <div class="rejilla">
+            <div class="tarjeta"><h3>Quien hace una app</h3>
+                <p>Nada. Implementa el perfil <code>ui</code> y dibuja <code>pacai.ui/1</code>. No tiene que leer UI Lang ni
+                    saber que existe; la app de Mac de AlfalfaCode no lo conoce.</p></div>
+            <div class="tarjeta"><h3>Quien hace un agente</h3>
+                <p>Decide qué escribe su modelo. Lo único obligatorio es validar y mandar nodos <code>pacai.ui/1</code> del
+                    catálogo que declaró la app.</p>
+                <p>En AlfalfaCode, hasta la versión 0.99.56 UI Lang se usa con GPT-6 Luna y Claude Haiku 5.5, los modelos en
+                    los que se midió. En <code>main</code> ya se usa con todos los modelos, y
+                    <code>ALFALFA_PACAI_UI_LANG=0</code> vuelve al JSON.</p></div>
+            <div class="tarjeta"><h3>Quien usa la app</h3>
+                <p>Ve las mismas pantallas, que cuestan algo menos y pueden salir antes. En AlfalfaCode, el interruptor
+                    «Vista enriquecida» apagado quita las pantallas, se escriban como se escriban, y el agente contesta en
+                    texto. Las que ya estaban se siguen viendo.</p></div>
+        </div>
+    </div>
+</section>
+
+<section class="bloque" id="medidas">
+    <div class="ancho">
+        <p class="antetitulo">Medidas</p>
+        <h2>Lo que se ha medido en AlfalfaCode</h2>
+        <p class="bajada">52 tareas sobre un tablero de precios, con GPT-6 Luna y Claude Haiku 5.5 juntos, 416 pantallas por
+            formato, temperatura 0. OpenUI Lang 1.0 es un formato parecido de otro proyecto, medido como referencia.</p>
+        <div class="tabla">
+            <table>
+                <thead><tr><th></th><th>PACAI UI Lang 3</th><th>OpenUI Lang 1.0</th><th>JSON con ejemplos</th></tr></thead>
+                <tbody>
+                    <tr><td>Pantallas válidas al primer intento</td><td class="n mejor">416/416 (100 %)</td><td class="n mejor">415/415 (100 %)</td><td class="n">407/416 (97,8 %)</td></tr>
+                    <tr><td>Pantallas que hacen exactamente lo pedido</td><td class="n mejor">412</td><td class="n">377</td><td class="n">380</td></tr>
+                    <tr><td>Coste por cada 1000 pantallas exactas</td><td class="n mejor">0,24 US$</td><td class="n">0,34 US$</td><td class="n">0,40 US$</td></tr>
+                    <tr><td>Instrucciones del formato en el prompt</td><td class="n mejor">1276 tokens</td><td class="n">1843 tokens</td><td class="n">2037 tokens</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <ul class="limites lectura" style="margin-top: 22px;">
+            <li><b>Las cifras de UI Lang 3 son de una tanda nueva.</b><span>416 peticiones con el motor de AlfalfaCode 0.99.56.
+                Las de OpenUI y JSON son de una tanda anterior del mismo estudio, así que la diferencia de coste es aproximada:
+                en torno a un 30 % menos que OpenUI y un 40 % menos que JSON.</span></li>
+            <li><b>No es un ranking general.</b><span>Con los 46 encargos más largos del benchmark de OpenUI no hay un ganador
+                claro: depende del modelo. Tampoco se ha medido el streaming real, la caché de prompt ni una sesión larga en
+                una app.</span></li>
+            <li><b>Detalle completo.</b><span>En el
+                <a href="https://github.com/0sw2ld0/AlfalfaCode/blob/main/docs/pacai/perfil-ui.md">perfil <code>ui</code> de
+                AlfalfaCode</a>, §10.</span></li>
+        </ul>
+    </div>
+</section>
+</main>
+
+<footer class="pie">
+    <div class="ancho">
+        <span><a href="./">PACAI</a> · perfil <code style="background:none;color:inherit;padding:0">ui</code>:
+            <a href="https://github.com/0sw2ld0/PACAI/blob/main/spec/perfiles/ui.md">especificación (borrador)</a></span>
+        <span><a href="https://github.com/0sw2ld0/PACAI">github.com/0sw2ld0/PACAI</a></span>
+    </div>
+</footer>
+</body>
+</html>
