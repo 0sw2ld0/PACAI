@@ -2,6 +2,8 @@
 
 > Estado: **borrador**, con las preguntas del primer borrador resueltas (sección 9). El motor de AlfalfaCode
 > ya lo habla, y la app de Mac, la extensión de VS Code y una demo web dibujan las pantallas (sección 8).
+> Puesto al día el 27 de noviembre de 2026 con lo que usa AlfalfaCode: `example` en los componentes propios,
+> `required` en `Select` y la sección 10 (lo que escribe el modelo es asunto del agente).
 > Esquema: [`pacai-ui-1.schema.json`](../../schema/pacai-ui-1.schema.json). Ejemplo completo:
 > [`ejemplos/ui-tickets.jsonl`](ejemplos/ui-tickets.jsonl).
 
@@ -31,7 +33,8 @@ para cualquier agente.
   siguiente el agente manda solo los nodos nuevos o distintos.
 - **Una pantalla siempre puede reconstruirse.** Al cerrar el mensaje, el agente manda la pantalla completa.
   Un cliente que reanuda o llega tarde no tiene que reconstruir la historia.
-- **Todo se valida con JSON Schema.** Lo que ya usa PACAI. No hay un lenguaje propio que analizar.
+- **Todo se valida con JSON Schema.** Lo que ya usa PACAI. El cliente no tiene que analizar ningún lenguaje
+  propio. Cómo escribe el modelo las pantallas por dentro es asunto del agente (sección 10).
 
 ## 2. Negociación
 
@@ -58,7 +61,7 @@ El cliente pide el perfil en `profiles` y describe lo que sabe dibujar en `rende
 | --- | --- |
 | `version` | Versión del perfil. Este borrador es la `"1"`. |
 | `catalog` | `"base"` (los 12 componentes de la sección 4) o `"none"` (solo los de `components`). Por defecto, `"base"`. |
-| `components` | Componentes propios del cliente. Cada uno: `description` (para el modelo), `props` (JSON Schema), `children` (si admite hijos) y `events`. Un nombre propio no puede pisar uno del catálogo base. |
+| `components` | Componentes propios del cliente. Cada uno: `description` (para el modelo), `props` (JSON Schema), `children` (si admite hijos), `events` y, opcional, `example`: de 1 a 4 nodos `pacai.ui/1` que enseñan al modelo a usarlo (enlaces `{"$": …}`, la forma de su `query`…). Un nombre propio no puede pisar uno del catálogo base. |
 | `actions` | Acciones que el cliente sabe ejecutar. Por defecto, las tres. |
 | `limits` | Nodos por pantalla y profundidad máxima. Por defecto, 300 y 12. |
 
@@ -143,7 +146,7 @@ propiedades está en `pacai-ui-1.schema.json` (`$defs/base_props`).
 | `Button` | `label`, `variant` (`primary`/`secondary`/`danger`), `disabled` | no | `press` |
 | `Form` | `submit_label` | sí | `submit` |
 | `Input` | `name`, `label`, `kind` (`text`/`number`/`multiline`/`email`/`date`), `placeholder`, `required` | no | `change` |
-| `Select` | `name`, `label`, `options` (`[{value, label}]`), `multiple` | no | `change` |
+| `Select` | `name`, `label`, `options` (`[{value, label}]`), `multiple`, `required` (empieza sin opción elegida y el `Form` no se envía hasta elegir una) | no | `change` |
 | `Chart` | `kind` (`bar`/`line`/`pie`), `labels`, `series` (`[{name, values}]`) | no | — |
 | `Image` | `src` (`https:` o `data:image/…`), `alt` (obligatorio) | no | — |
 | `Code` | `code`, `language` | no | — |
@@ -232,7 +235,9 @@ pruebas en `tests/test_pacai_ui.py`.
 2. **Prompt.** Con `ui` negociado, el motor añade al prompt de sistema, en cada petición, una sección generada
    desde el catálogo (`Catalogo.manual()`): los componentes, sus propiedades y eventos, las acciones que el
    cliente ejecuta y cuándo conviene dibujar en vez de escribir.
-3. **Salida del modelo.** El modelo escribe la pantalla en un bloque cercado, con un nodo JSON por línea:
+3. **Salida del modelo.** El modelo escribe la pantalla en un bloque cercado. Hasta la versión 0.99.56, en PACAI
+   UI Lang con GPT-6 Luna y Claude Haiku 5.5; en `main`, con todos los modelos (sección 10). Con
+   `ALFALFA_PACAI_UI_LANG=0`, o con los demás modelos hasta la 0.99.56, un nodo JSON por línea:
 
    ````text
    ```pacai-ui view=tickets placement=latest
@@ -274,6 +279,26 @@ pruebas en `tests/test_pacai_ui.py`.
 11. **Pendiente.** Que el modelo se entere de los nodos rechazados para corregirlos, y cómo se ven las pantallas
     al reanudar una sesión guardada (sin comprobar). En la app de Mac y en VS Code las pantallas de un mensaje
     salen debajo de todo su texto, no entre los párrafos donde las escribió el modelo.
+12. **Un ejemplo por componente en el prompt.** El manual lleva un nodo de ejemplo por componente base y el
+    `example` de cada componente propio que pase su propio esquema. Son unos 600 tokens más; en un piloto con
+    GPT-6 Luna y Claude Haiku 5.5, las pantallas válidas a la primera pasaron del 86–89 % al 97 %.
+13. **La valla vale aunque no empiece la línea.** `Aquí está:```pacai-ui view=x` se reconoce, y el texto de delante
+    sale como texto normal.
+14. **Las pantallas se guardan con la sesión.** Con `--pacai --reanudar` cada vista sigue por su revisión siguiente, y
+    una acción sobre una pantalla de antes de reanudar llega al modelo como cualquier otra.
+15. **Reparaciones que no cambian lo pedido.** Por ejemplo, si una vista nueva no trae `root`, el motor añade uno
+    que envuelve los nodos sueltos, sin cambiar ningún id. Lo demás que no valida se rechaza y se le pide al modelo
+    que lo corrija.
+16. **Prototipo, apagado: el manual bajo demanda.** Con `ALFALFA_PACAI_UI_MANUAL=1` el modelo carga el manual con
+    una herramienta en vez de llevarlo siempre en el prompt. Se midió que dibuja menos pantallas, así que no se
+    enciende por defecto.
+17. **«Vista enriquecida».** El cliente puede apagar las pantallas sin renegociar la sesión con la orden
+    `alfalfa.set_rich_view` (`active`). Apagada, el modelo no recibe el manual de pantallas y contesta en texto; las
+    que ya dibujó se siguen viendo. En `main`, la app de Mac y VS Code la traen apagada por defecto; el motor la
+    deja encendida para un cliente que no manda la orden.
+
+El detalle, con sus medidas, está en el
+[perfil `ui` de AlfalfaCode](https://github.com/0sw2ld0/AlfalfaCode/blob/main/docs/pacai/perfil-ui.md), secciones 8 y 10.
 
 ## 9. Decisiones (24 de noviembre de 2026)
 
@@ -306,7 +331,47 @@ Las preguntas abiertas del primer borrador, ya resueltas:
    Conclusiones: una pantalla cuesta unas 3,7 veces lo que el texto equivalente, y un 40 % más que una
    sintaxis propia de línea. El `patch` ahorra un 43 % frente a reescribir la vista. Se acepta ese 40 % a cambio
    de validar con JSON Schema y no tener que escribir un analizador en cada cliente.
+
+   *Después (26 de noviembre de 2026):* el ahorro se recupera sin tocar a los clientes. El modelo puede escribir
+   en una forma compacta y el agente la traduce a `pacai.ui/1` antes de mandarla, así que el analizador está en
+   un solo sitio, el agente (sección 10).
 6. **Claves legibles.** El primer borrador usaba claves de una letra (`c`, `p`, `kids`, `on`) para ahorrar
    tokens, pero no ahorran nada: `c` y `component` son un token cada una. El coste está en la puntuación de
    JSON y en los datos. Los nodos usan `component`, `props`, `children` y `events`, que el modelo y las
    personas entienden mejor, y la declaración de un componente propio dice `children` en vez de `kids`.
+
+## 10. Lo que escribe el modelo es asunto del agente
+
+El perfil fija lo que viaja entre el agente y el cliente: nodos `pacai.ui/1` en bloques `structured`, y acciones
+`pacai.ui.action/1` de vuelta. No fija cómo los produce el agente. Un agente basado en un modelo de lenguaje puede
+dejar que el modelo escriba las pantallas en JSON, en una forma abreviada o como prefiera, siempre que:
+
+- traduzca lo que escribe el modelo a nodos `pacai.ui/1` antes de mandarlos;
+- valide cada nodo contra el catálogo del cliente (sección 3, «Validación») y no mande lo que no lo cumple;
+- ponga él la revisión (`rev`) de cada vista, sin dejarla en manos del modelo.
+
+El cliente no nota la diferencia ni tiene que conocer la forma abreviada.
+
+**El ejemplo de AlfalfaCode: PACAI UI Lang.** Es una línea por nodo,
+`id Componente "texto principal" clave=valor > hijos`, con las acciones tras `@evento=`. La misma tarjeta en las dos
+formas que puede escribir su modelo (49 y 86 tokens, `o200k_base`):
+
+```text
+root Card "Palta Hass" meta="hoy · fruta" > nota,ver
+nota Text "Sube un 3 % esta semana."
+ver Button "Ver historial" variant=primary @press={"send":"ver_historial"}
+```
+
+```text
+{"id":"root","component":"Card","props":{"title":"Palta Hass","meta":"hoy · fruta"},"children":["nota","ver"]}
+{"id":"nota","component":"Text","props":{"text":"Sube un 3 % esta semana."}}
+{"id":"ver","component":"Button","props":{"label":"Ver historial","variant":"primary"},"events":{"press":{"send":"ver_historial"}}}
+```
+
+En los dos casos, el `message_end` lleva al cliente los mismos tres nodos `pacai.ui/1`. En las medidas de AlfalfaCode
+(52 tareas, GPT-6 Luna y Claude Haiku 5.5, 416 pantallas por formato), la forma abreviada sale válida a la primera
+tanto como el JSON o más (416/416 frente a 407/416) y cuesta en torno a un 40 % menos por pantalla correcta.
+
+- Explicación con diagrama: [docs.pacai.dev/ui-lang.html](https://docs.pacai.dev/ui-lang.html).
+- Gramática, reparaciones y medidas completas: la sección 10 del
+  [perfil `ui` de AlfalfaCode](https://github.com/0sw2ld0/AlfalfaCode/blob/main/docs/pacai/perfil-ui.md).
